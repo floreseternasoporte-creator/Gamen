@@ -188,6 +188,75 @@
             background: #333;
             border-color: #fff;
         }
+
+        /* ── Animated film grain ───────────────────────────────────────────── */
+        @keyframes grainShift {
+            0%   { transform: translate(0,0)     scale(1.05); }
+            20%  { transform: translate(-2%,-1%) scale(1.05); }
+            40%  { transform: translate(1%, 2%)  scale(1.05); }
+            60%  { transform: translate(2%,-2%)  scale(1.05); }
+            80%  { transform: translate(-1%, 1%) scale(1.05); }
+            100% { transform: translate(0,0)     scale(1.05); }
+        }
+        #noise-overlay { animation: grainShift 0.13s steps(1) infinite; }
+
+        /* ── Horizontal scanlines ──────────────────────────────────────────── */
+        #scanlines {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9;
+            background: repeating-linear-gradient(
+                to bottom,
+                transparent 0px, transparent 3px,
+                rgba(0,0,0,0.05) 3px, rgba(0,0,0,0.05) 4px
+            );
+        }
+
+        /* ── Heartbeat vignette (updated by JS each frame) ─────────────────── */
+        #heartbeat-vignette {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 8;
+        }
+
+        /* ── Blood drip canvas ─────────────────────────────────────────────── */
+        #drip-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 7;
+        }
+
+        /* ── Screen glitch overlay ─────────────────────────────────────────── */
+        #glitch-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 18;
+            opacity: 0;
+            background: rgba(0, 200, 80, 0.04);
+            mix-blend-mode: screen;
+        }
+        @keyframes glitchAnim {
+            0%, 100% { opacity: 0;   transform: translate(0,0)   skewX(0deg); }
+            12%      { opacity: 0.8; transform: translate(-3px,0) skewX(-1.2deg); }
+            24%      { opacity: 0.6; transform: translate(3px,1px) skewX(1deg); }
+            36%      { opacity: 0.8; transform: translate(-1px,-1px) skewX(-0.4deg); }
+            50%      { opacity: 0;   transform: translate(0,0)   skewX(0deg); }
+        }
+        #glitch-layer.firing { animation: glitchAnim 0.22s steps(1) forwards; }
+
+        /* ── Chromatic aberration flash on canvas ───────────────────────────── */
+        @keyframes caFlash {
+            0%, 100% { filter: none; }
+            35% { filter: drop-shadow(-2px 0 0 rgba(255,0,0,0.22))
+                         drop-shadow(2px 0 0 rgba(0,80,255,0.18)); }
+        }
+        #game-canvas.ca-flash { animation: caFlash 0.28s ease-out forwards; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -198,6 +267,10 @@
 <div id="noise-overlay"></div>
 <div id="dirt-overlay"></div>
 <div id="vignette-flash"></div>
+<div id="heartbeat-vignette"></div>
+<canvas id="drip-canvas"></canvas>
+<div id="scanlines"></div>
+<div id="glitch-layer"></div>
 <div id="interact-prompt">[ E ] ABRIR PUERTA</div>
 
 <div id="ui-layer">
@@ -241,6 +314,11 @@ let machineDisplays = [];
 let receptionScreens = [];
 let nearestDoor = null;
 let materials = {};
+let ghostLights = [];
+let dripParticles = [];
+let dripCanvas2D, dripCtx2D;
+let glitchTimer = 12;
+let heartbeatEl;
 
 const HALL_WIDTH = 6;
 const WALL_HEIGHT = 3.5;
@@ -259,6 +337,125 @@ const ROOM_DATA = [
     { num: '209', label: 'FARMACIA' },
     { num: '210', label: 'PABELLÓN C' }
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SPECIAL EFFECTS — heartbeat, blood drips, ghost lights, glitch
+// ═══════════════════════════════════════════════════════════════════════════
+
+function initEffects() {
+    heartbeatEl = document.getElementById('heartbeat-vignette');
+
+    // ── Blood drip canvas ─────────────────────────────────────────────────
+    dripCanvas2D = document.getElementById('drip-canvas');
+    dripCanvas2D.width  = window.innerWidth;
+    dripCanvas2D.height = window.innerHeight;
+    dripCtx2D = dripCanvas2D.getContext('2d');
+
+    // Spawn drip particles along the top edge
+    for (let i = 0; i < 10; i++) {
+        spawnDrip(true);
+    }
+
+    // ── Ghost / atmosphere lights (very dim wandering colours) ────────────
+    const ghostColors = [0x003344, 0x1a0005, 0x100018];
+    ghostColors.forEach((col, i) => {
+        const gl = new THREE.PointLight(col, 3.5, 13);
+        gl.position.set(
+            (Math.random() - 0.5) * HALL_WIDTH * 0.6,
+            1.4 + Math.random() * 1.4,
+            -6 - Math.random() * (HALL_LENGTH - 12)
+        );
+        scene.add(gl);
+        ghostLights.push({
+            light: gl,
+            bx: gl.position.x, by: gl.position.y, bz: gl.position.z,
+            ph: Math.random() * Math.PI * 2,
+            sp: 0.10 + Math.random() * 0.09
+        });
+    });
+}
+
+function spawnDrip(randomY) {
+    const side = Math.random();
+    dripParticles.push({
+        x: side < 0.33
+            ? Math.random() * window.innerWidth * 0.22                        // left cluster
+            : side < 0.66
+                ? window.innerWidth * 0.38 + Math.random() * window.innerWidth * 0.24  // center
+                : window.innerWidth * 0.78 + Math.random() * window.innerWidth * 0.22, // right cluster
+        y: randomY ? -Math.random() * window.innerHeight * 0.3 : -10,
+        speed: 0.22 + Math.random() * 0.38,
+        w: 2 + Math.random() * 2.5,
+        len: 28 + Math.random() * 65,
+        op: 0.28 + Math.random() * 0.35,
+    });
+}
+
+function drawDroplet(ctx, x, y, w, len, op) {
+    const grad = ctx.createLinearGradient(x, y - len, x, y + w);
+    grad.addColorStop(0,   `rgba(90,0,0,0)`);
+    grad.addColorStop(0.25,`rgba(110,0,0,${op * 0.55})`);
+    grad.addColorStop(1,   `rgba(145,0,0,${op})`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(x - w / 2, y - len);
+    ctx.lineTo(x + w / 2, y - len);
+    ctx.lineTo(x + w / 2, y);
+    ctx.quadraticCurveTo(x + w / 2, y + w * 0.9, x, y + w * 0.9);
+    ctx.quadraticCurveTo(x - w / 2, y + w * 0.9, x - w / 2, y);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function updateEffects(t) {
+    // ── Ghost lights ──────────────────────────────────────────────────────
+    ghostLights.forEach(g => {
+        g.light.position.x = g.bx + Math.sin(t * g.sp + g.ph)       * 0.9;
+        g.light.position.y = g.by + Math.cos(t * g.sp * 0.6 + g.ph) * 0.35;
+        g.light.position.z = g.bz + Math.sin(t * g.sp * 0.4 + g.ph * 1.4) * 2.2;
+        g.light.intensity  = 2.2 + Math.sin(t * g.sp * 2.2 + g.ph)  * 1.0;
+    });
+
+    // ── Heartbeat vignette (LUB-DUB at ~60 bpm = 1.0 s period) ──────────
+    const hbT   = t % 1.0;
+    let   pulse = 0;
+    if      (hbT < 0.07)  pulse = hbT / 0.07;
+    else if (hbT < 0.15)  pulse = 1 - (hbT - 0.07) / 0.08;
+    else if (hbT < 0.26)  pulse = (hbT - 0.15) / 0.11 * 0.55;
+    else if (hbT < 0.36)  pulse = 0.55 - (hbT - 0.26) / 0.10 * 0.55;
+    const hbAlpha = pulse * 0.30;
+    heartbeatEl.style.background =
+        `radial-gradient(ellipse 100% 80% at 50% 50%, transparent 30%, rgba(70,0,0,${hbAlpha}) 100%)`;
+
+    // ── Blood drips ───────────────────────────────────────────────────────
+    if (dripCtx2D) {
+        dripCtx2D.clearRect(0, 0, dripCanvas2D.width, dripCanvas2D.height);
+        for (let i = dripParticles.length - 1; i >= 0; i--) {
+            const dp = dripParticles[i];
+            dp.y += dp.speed;
+            if (dp.y - dp.len > dripCanvas2D.height + 20) {
+                dripParticles.splice(i, 1);
+                spawnDrip(false);
+                continue;
+            }
+            drawDroplet(dripCtx2D, dp.x, dp.y, dp.w, dp.len, dp.op);
+        }
+    }
+
+    // ── Random screen glitch ──────────────────────────────────────────────
+    glitchTimer -= deltaTime;
+    if (glitchTimer <= 0) {
+        glitchTimer = 9 + Math.random() * 14;
+        const glitchEl = document.getElementById('glitch-layer');
+        glitchEl.classList.remove('firing');
+        void glitchEl.offsetWidth; // force reflow to restart animation
+        glitchEl.classList.add('firing');
+        const cvs = document.getElementById('game-canvas');
+        cvs.classList.remove('ca-flash');
+        void cvs.offsetWidth;
+        cvs.classList.add('ca-flash');
+    }
+}
 
 function init() {
     const canvas = document.getElementById('game-canvas');
@@ -310,6 +507,7 @@ function init() {
     setupScreenParticles();
     buildDetailedHallway();
     buildLobby();
+    initEffects();
 
     window.addEventListener('resize', onWindowResize, false);
     if (isMobile) setupMobileControls();
@@ -622,10 +820,28 @@ function generateMaterials() {
         drawRustStreak(ctx, w * 0.72, 0, h * 0.65, 45);
         ctx.fillStyle = '#332b1f';
         ctx.fillRect(0, h / 2 - 20, w, 40);
-        // Graffiti en la pared derecha
-        drawSprayText(ctx, 'NO SALGAS', Math.round(w * 0.12), Math.round(h * 0.36), 78, { color: 'rgba(10,10,8,0.93)', tilt: -0.05 });
-        drawSprayText(ctx, 'AYUDA', Math.round(w * 0.57), Math.round(h * 0.27), 100, { color: 'rgba(88,4,4,0.85)', tilt: 0.04 });
-        drawSprayText(ctx, 'SALIDA →', Math.round(w * 0.65), Math.round(h * 0.70), 58, { color: 'rgba(12,12,10,0.72)', tilt: 0.02 });
+        // Manchas de humedad adicionales en lugar de graffiti
+        for (let i = 0; i < 5; i++) {
+            const wx = Math.random() * w, wy = Math.random() * h * 0.65;
+            const wr = 45 + Math.random() * 90;
+            const wg = ctx.createRadialGradient(wx, wy, 0, wx, wy, wr);
+            wg.addColorStop(0, 'rgba(72,60,38,0.28)');
+            wg.addColorStop(1, 'rgba(40,33,20,0)');
+            ctx.fillStyle = wg;
+            ctx.beginPath();
+            ctx.ellipse(wx, wy, wr, wr * (0.6 + Math.random() * 0.9), Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Escurridos de agua / óxido bajando por la pared
+        for (let i = 0; i < 5; i++) {
+            const sx = Math.random() * w;
+            const sg = ctx.createLinearGradient(sx, 0, sx + (Math.random() - 0.5) * 18, h);
+            sg.addColorStop(0, 'rgba(58,48,28,0)');
+            sg.addColorStop(0.35, 'rgba(58,48,28,0.28)');
+            sg.addColorStop(1, 'rgba(42,35,18,0)');
+            ctx.fillStyle = sg;
+            ctx.fillRect(sx - 3, 0, 5 + Math.random() * 4, h);
+        }
         for (let i = 0; i < 40; i++) {
             ctx.fillStyle = 'rgba(20,17,12,0.5)';
             ctx.fillRect(Math.random() * w, h / 2 - 22 + Math.random() * 44, 15 + Math.random() * 20, 4);
@@ -2739,6 +2955,7 @@ function animate() {
 
     updateScreenParticles();
     updateDoorInteraction();
+    updateEffects(clock.elapsedTime);
     renderer.render(scene, camera);
 }
 
@@ -2746,6 +2963,10 @@ function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    if (dripCanvas2D) {
+        dripCanvas2D.width  = window.innerWidth;
+        dripCanvas2D.height = window.innerHeight;
+    }
 }
 
 document.getElementById('start-btn').addEventListener('click', () => {
