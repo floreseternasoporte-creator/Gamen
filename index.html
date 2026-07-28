@@ -29,7 +29,7 @@
             inset: 0;
             pointer-events: none;
             z-index: 10;
-            background: radial-gradient(circle at center, transparent 35%, rgba(0,0,10,0.85) 100%);
+            background: radial-gradient(circle at center, transparent 30%, rgba(3,5,10,0.78) 100%);
             mix-blend-mode: multiply;
         }
         #noise-overlay {
@@ -37,7 +37,7 @@
             inset: 0;
             pointer-events: none;
             z-index: 11;
-            opacity: 0.10;
+            opacity: 0.12;
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
         }
         #dirt-overlay {
@@ -45,8 +45,8 @@
             inset: 0;
             pointer-events: none;
             z-index: 12;
-            opacity: 0.35;
-            box-shadow: inset 0 0 180px rgba(0,0,0,0.95);
+            opacity: 0.34;
+            box-shadow: inset 0 0 220px rgba(0,0,0,1);
         }
         #vignette-flash {
             position: absolute;
@@ -231,6 +231,8 @@ let joyStartX = 0, joyStartY = 0, joyCurrentX = 0, joyCurrentY = 0;
 let lookLastX = 0, lookLastY = 0;
 let cameraRoll = 0;
 let cameraBob = 0;
+let cameraShake = 0;
+let cameraSway = 0;
 
 let lights = [];
 let flashlight;
@@ -268,13 +270,13 @@ function init() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.physicallyCorrectLights = true;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.95;
+    renderer.toneMappingExposure = 1.18;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x010101);
-    scene.fog = new THREE.FogExp2(0x030303, 0.045);
+    scene.fog = new THREE.FogExp2(0x050505, 0.046);
 
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
     camera.position.set(0, 1.6, 12);
@@ -282,8 +284,13 @@ function init() {
 
     clock = new THREE.Clock();
 
-    const ambientLight = new THREE.AmbientLight(0x1a2025, 0.28);
+    const ambientLight = new THREE.AmbientLight(0x1a2025, 0.35);
     scene.add(ambientLight);
+
+    const fillLight = new THREE.PointLight(0x233446, 1.95, 24);
+    fillLight.position.set(0, 2.4, -10);
+    scene.add(fillLight);
+    lights.push({ light: fillLight, mat: null, baseInt: 1.55, isBroken: false });
 
     flashlight = new THREE.SpotLight(0xfff5e6, 25, 30, Math.PI / 5, 0.6, 1.5);
     flashlight.position.set(0.2, -0.2, 0);
@@ -1085,6 +1092,9 @@ function createRoomInterior(doorX, doorZ, roomIdx) {
 function createCeilingLight(x, z) {
     const group = new THREE.Group();
 
+    // Eliminar cualquier efecto translúcido que pueda generar artefactos en el techo
+    group.renderOrder = 2;
+
     // Carcasa exterior más realista: caja metálica envejecida
     const housingGeo = new THREE.BoxGeometry(1.15, 0.14, 2.0);
     const housing = new THREE.Mesh(housingGeo, materials.darkMetal);
@@ -1096,11 +1106,11 @@ function createCeilingLight(x, z) {
     // Difusor opaco y limpio, sin artefactos transparentes
     const diffuserGeo = new THREE.BoxGeometry(1.02, 0.04, 1.72);
     const diffuserMat = new THREE.MeshStandardMaterial({
-        color: 0xcfd9e4,
-        roughness: 0.25,
-        metalness: 0.06,
-        emissive: 0x081118,
-        emissiveIntensity: 0.16
+        color: 0xeaf3f9,
+        roughness: 0.22,
+        metalness: 0.04,
+        emissive: 0x0d1720,
+        emissiveIntensity: 0.08
     });
     const diffuser = new THREE.Mesh(diffuserGeo, diffuserMat);
     diffuser.position.y = WALL_HEIGHT - 0.095;
@@ -1122,8 +1132,8 @@ function createCeilingLight(x, z) {
     const tubeMat = new THREE.MeshStandardMaterial({
         color: 0xffffff,
         emissive: 0xf0f6ff,
-        emissiveIntensity: 0.72,
-        roughness: 0.18,
+        emissiveIntensity: 0.56,
+        roughness: 0.16,
         metalness: 0.02
     });
     const tubeA = new THREE.Mesh(tubeGeo, tubeMat);
@@ -1148,14 +1158,14 @@ function createCeilingLight(x, z) {
     }
 
     // Luz real: spot suave hacia abajo + punto de apoyo
-    const spot = new THREE.SpotLight(0xdcecff, 5.6, 10, Math.PI / 4.8, 0.52, 1.5);
+    const spot = new THREE.SpotLight(0xdcecff, 7.2, 12, Math.PI / 4.8, 0.52, 1.5);
     spot.position.set(x, WALL_HEIGHT - 0.16, z);
     spot.target.position.set(x, 0.1, z);
     spot.castShadow = false;
     scene.add(spot);
     scene.add(spot.target);
 
-    const light = new THREE.PointLight(0xdcecff, 3.8, 8);
+    const light = new THREE.PointLight(0xdcecff, 5.1, 10);
     light.position.set(x, WALL_HEIGHT - 0.18, z);
     light.castShadow = false;
     scene.add(light);
@@ -1555,7 +1565,7 @@ function createDebris() {
 
 function createDust() {
     const geo = new THREE.BufferGeometry();
-    const count = 1800;
+    const count = 2600;
     const pos = new Float32Array(count * 3);
     for (let i = 0; i < count * 3; i += 3) {
         pos[i] = (Math.random() - 0.5) * HALL_WIDTH;
@@ -1563,100 +1573,23 @@ function createDust() {
         pos[i + 2] = -Math.random() * HALL_LENGTH;
     }
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({ color: 0xaaa8a0, size: 0.018, transparent: true, opacity: 0.32 });
+    const mat = new THREE.PointsMaterial({
+        color: 0xc7c2b0,
+        size: 0.020,
+        transparent: true,
+        opacity: 0.30,
+        depthWrite: false
+    });
     scene.particles = new THREE.Points(geo, mat);
     scene.add(scene.particles);
 }
 
-let screenParticleCanvas = null;
-let screenParticleCtx = null;
-let screenParticles = [];
-
 function setupScreenParticles() {
-    screenParticleCanvas = document.getElementById('fx-particles');
-    if (!screenParticleCanvas) return;
-    screenParticleCtx = screenParticleCanvas.getContext('2d');
-
-    const resize = () => {
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        screenParticleCanvas.width = Math.floor(window.innerWidth * dpr);
-        screenParticleCanvas.height = Math.floor(window.innerHeight * dpr);
-        screenParticleCanvas.style.width = window.innerWidth + 'px';
-        screenParticleCanvas.style.height = window.innerHeight + 'px';
-        screenParticleCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-
-    resize();
-    window.addEventListener('resize', resize, false);
-
-    screenParticles = Array.from({ length: 360 }, () => ({
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight,
-        vx: (Math.random() - 0.5) * 0.28,
-        vy: 0.04 + Math.random() * 0.22,
-        size: 0.7 + Math.random() * 3.8,
-        alpha: 0.02 + Math.random() * 0.12,
-        rot: Math.random() * Math.PI,
-        spin: (Math.random() - 0.5) * 0.03,
-        pulse: Math.random() * Math.PI * 2,
-        depth: Math.random(),
-        trail: 0.25 + Math.random() * 0.55
-    }));
+    // Efecto eliminado para que no aparezcan esporas circulares en pantalla.
 }
 
 function updateScreenParticles() {
-    if (!screenParticleCtx || !screenParticleCanvas) return;
-
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    screenParticleCtx.clearRect(0, 0, w, h);
-    screenParticleCtx.globalCompositeOperation = 'screen';
-
-    const motionBoost = 1 + Math.min(1, direction.length()) * 0.75;
-
-    for (const p of screenParticles) {
-        p.x += p.vx * motionBoost * 60 * deltaTime;
-        p.y += p.vy * motionBoost * 60 * deltaTime;
-        p.rot += p.spin;
-        p.pulse += deltaTime * 2.5;
-
-        if (p.y > h + 10) {
-            p.y = -10;
-            p.x = Math.random() * w;
-        }
-        if (p.x < -10) p.x = w + 10;
-        if (p.x > w + 10) p.x = -10;
-
-        const twinkle = 0.65 + Math.sin(p.pulse) * 0.35;
-        const s = p.size * twinkle;
-        const a = p.alpha * (0.55 + p.depth * 0.75);
-
-        screenParticleCtx.save();
-        screenParticleCtx.translate(p.x, p.y);
-        screenParticleCtx.rotate(p.rot);
-
-        const glow = screenParticleCtx.createLinearGradient(-s, -s, s, s);
-        glow.addColorStop(0, `rgba(255,255,255,0)`);
-        glow.addColorStop(0.5, `rgba(210, 225, 240, ${a * 0.55})`);
-        glow.addColorStop(1, `rgba(255,255,255,0)`);
-        screenParticleCtx.fillStyle = glow;
-        screenParticleCtx.fillRect(-s * 1.35, -s * 1.35, s * 2.7, s * 2.7);
-
-        screenParticleCtx.fillStyle = `rgba(235, 242, 248, ${a})`;
-        screenParticleCtx.fillRect(-s / 2, -s / 2, s, s);
-
-        screenParticleCtx.fillStyle = `rgba(255, 255, 255, ${a * 0.38})`;
-        screenParticleCtx.fillRect(-s * 0.16, -s * 0.16, s * 0.32, s * 0.32);
-
-        if (p.trail > 0.45) {
-            screenParticleCtx.fillStyle = `rgba(200, 220, 240, ${a * 0.12})`;
-            screenParticleCtx.fillRect(-s * 0.08, s * 0.55, s * 0.16, s * (0.7 + p.trail));
-        }
-
-        screenParticleCtx.restore();
-    }
-
-    screenParticleCtx.globalCompositeOperation = 'source-over';
+    // Sin efecto visual en pantalla.
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2575,13 +2508,17 @@ function animate() {
 
     const moving = direction.length() > 0 || Math.abs(joyCurrentX) > 0.01 || Math.abs(joyCurrentY) > 0.01;
     const walkCycle = clock.elapsedTime * (moving ? 10.5 : 3.0);
-    const bobTarget = moving ? Math.sin(walkCycle) * 0.072 : 0;
-    const rollTarget = moving ? (-direction.x * 0.06) + Math.sin(walkCycle * 0.7) * 0.014 : 0;
+    const bobTarget = moving ? Math.sin(walkCycle) * 0.092 : 0;
+    const rollTarget = moving ? (-direction.x * 0.08) + Math.sin(walkCycle * 0.7) * 0.024 : 0;
+    const shakeTarget = moving ? 0.026 + Math.min(0.014, direction.length() * 0.01) : 0.008;
 
     cameraBob += (bobTarget - cameraBob) * 0.16;
     cameraRoll += (rollTarget - cameraRoll) * 0.14;
+    cameraShake += (shakeTarget - cameraShake) * 0.18;
+    cameraSway += (moving ? Math.sin(walkCycle * 1.2) * 0.0035 : 0 - cameraSway * 0.35) * 0.18;
 
-    camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, cameraRoll, 'YXZ'));
+    const headTilt = moving ? Math.sin(walkCycle * 0.8) * 0.03 + cameraShake * 0.1 : 0;
+    camera.quaternion.setFromEuler(new THREE.Euler(pitch + headTilt * 0.25, yaw + headTilt * 0.08, cameraRoll + headTilt * 0.16, 'YXZ'));
 
     direction.z = Number(moveForward) - Number(moveBackward);
     direction.x = Number(moveRight) - Number(moveLeft);
@@ -2606,11 +2543,14 @@ function animate() {
 
         checkBoundary(camera.position);
 
-        flashlight.position.x = 0.2 + Math.sin(clock.elapsedTime * 4) * 0.05;
-        flashlight.position.y = -0.2 + Math.cos(clock.elapsedTime * 4) * 0.05;
+        flashlight.position.x = 0.2 + Math.sin(clock.elapsedTime * 4) * 0.08;
+        flashlight.position.y = -0.2 + Math.cos(clock.elapsedTime * 4) * 0.07;
+        flashlight.angle = Math.PI / 5 + Math.sin(clock.elapsedTime * 6) * 0.01;
     }
 
     camera.position.y = 1.6 + cameraBob + (moving ? Math.sin(clock.elapsedTime * 18) * 0.01 : Math.sin(clock.elapsedTime * 2) * 0.015);
+    camera.position.x += Math.sin(clock.elapsedTime * 6 + yaw) * cameraShake * 0.3;
+    camera.position.z += Math.cos(clock.elapsedTime * 5 + yaw) * cameraShake * 0.15;
 
     lights.forEach(l => {
         if (l.isBroken) {
@@ -2624,6 +2564,8 @@ function animate() {
                 if (l.spot) l.spot.intensity = Math.random() * l.spotBase * 0.3;
                 if (l.mat) l.mat.emissiveIntensity = 0.2;
             }
+        } else if (l.light && l.light.type === 'PointLight') {
+            l.light.intensity = l.baseInt + Math.sin(clock.elapsedTime * 1.3 + l.baseInt) * 0.08;
         }
     });
 
