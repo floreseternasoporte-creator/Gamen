@@ -1,0 +1,1876 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Hospital Psiquiátrico - Terror Realista</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+            touch-action: none;
+        }
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+        }
+        #fx-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+            background: radial-gradient(circle at center, transparent 35%, rgba(0,0,10,0.85) 100%);
+            mix-blend-mode: multiply;
+        }
+        #noise-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 11;
+            opacity: 0.10;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+        #dirt-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 12;
+            opacity: 0.35;
+            box-shadow: inset 0 0 180px rgba(0,0,0,0.95);
+        }
+        #vignette-flash {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 13;
+            background: rgba(120,0,0,0);
+            transition: background 0.15s ease;
+        }
+        #fx-particles {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 14;
+            pointer-events: none;
+            mix-blend-mode: screen;
+            opacity: 0.75;
+        }
+        #interact-prompt {
+            position: absolute;
+            bottom: 22%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 15;
+            color: #eee;
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+            background: rgba(0,0,0,0.55);
+            padding: 8px 16px;
+            border: 1px solid rgba(255,255,255,0.15);
+            display: none;
+            text-align: center;
+            pointer-events: none;
+        }
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            display: none;
+        }
+        #joystick-zone {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 140px;
+            height: 140px;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            touch-action: none;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 70px;
+            left: 70px;
+            width: 50px;
+            height: 50px;
+            background: rgba(255,255,255,0.4);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #look-zone {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 50%;
+            height: 100%;
+            touch-action: none;
+        }
+        #interact-btn {
+            position: absolute;
+            bottom: 55px;
+            right: 30px;
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+            border: 2px solid rgba(255,255,255,0.25);
+            color: #eee;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            touch-action: none;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #menu-screen {
+            position: absolute;
+            inset: 0;
+            background: #050505;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2.5rem;
+            color: #ccaa88;
+            text-shadow: 0 0 10px #000;
+            letter-spacing: 2px;
+            margin: 0 0 14px;
+        }
+        p {
+            font-size: 1rem;
+            color: #888;
+            max-width: 80%;
+            line-height: 1.5;
+            margin: 0 0 20px;
+        }
+        #start-btn {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: #111;
+            color: #fff;
+            border: 1px solid #444;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-family: 'Courier New', Courier, monospace;
+            transition: all 0.3s ease;
+        }
+        #start-btn:hover {
+            background: #333;
+            border-color: #fff;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<div id="fx-overlay"></div>
+<div id="noise-overlay"></div>
+<div id="dirt-overlay"></div>
+<div id="vignette-flash"></div>
+<div id="interact-prompt">[ E ] ABRIR PUERTA</div>
+
+<div id="ui-layer">
+    <div id="joystick-zone"><div id="joystick-knob"></div></div>
+    <div id="look-zone"></div>
+    <div id="interact-btn">ABRIR</div>
+    <div id="crosshair"></div>
+</div>
+
+<div id="menu-screen">
+    <h1>PABELLÓN ABANDONADO</h1>
+    <p>Motor de Renderizado AAAA. Texturas Procedurales e Iluminación Global.</p>
+    <p style="font-size: 0.8rem; color: #555;">
+        CONTROLES:<br>
+        Móvil: Joystick izquierdo para caminar, arrastra la pantalla derecha para mirar, botón ABRIR para interactuar.<br>
+        PC: WASD y Ratón (click para bloquear), tecla E para abrir puertas.
+    </p>
+    <button id="start-btn">EXPLORAR</button>
+</div>
+
+<script>
+
+let scene, camera, renderer, clock, deltaTime;
+let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+let direction = new THREE.Vector3();
+let moveSpeed = 3.0;
+let pitch = 0, yaw = 0;
+let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+let touchLeftId = null, touchRightId = null;
+let joyStartX = 0, joyStartY = 0, joyCurrentX = 0, joyCurrentY = 0;
+let lookLastX = 0, lookLastY = 0;
+let cameraRoll = 0;
+let cameraBob = 0;
+
+let lights = [];
+let flashlight;
+let doors = [];
+let nearestDoor = null;
+let materials = {};
+
+const HALL_WIDTH = 6;
+const WALL_HEIGHT = 3.5;
+const HALL_LENGTH = 60;
+const DOOR_INTERACT_DIST = 1.8;
+const ROOM_DEPTH = 5.8;
+const ROOM_WIDTH = 4.8;
+
+const ROOM_DATA = [
+    { num: '203', label: 'CIRUGÍA' },
+    { num: '204', label: 'PSIQUIATRÍA' },
+    { num: '205', label: 'AISLAMIENTO' },
+    { num: '206', label: 'MORGUE' },
+    { num: '207', label: 'ARCHIVO' },
+    { num: '208', label: 'RADIOLOGÍA' },
+    { num: '209', label: 'FARMACIA' },
+    { num: '210', label: 'PABELLÓN C' }
+];
+
+function init() {
+    const canvas = document.getElementById('game-canvas');
+
+    renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        powerPreference: 'high-performance'
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.physicallyCorrectLights = true;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.95;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x010101);
+    scene.fog = new THREE.FogExp2(0x030303, 0.045);
+
+    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1.6, 2);
+
+    clock = new THREE.Clock();
+
+    const ambientLight = new THREE.AmbientLight(0x1a2025, 0.28);
+    scene.add(ambientLight);
+
+    flashlight = new THREE.SpotLight(0xfff5e6, 25, 30, Math.PI / 5, 0.6, 1.5);
+    flashlight.position.set(0.2, -0.2, 0);
+    flashlight.target.position.set(0, 0, -1);
+    flashlight.castShadow = true;
+    flashlight.shadow.mapSize.width = 1024;
+    flashlight.shadow.mapSize.height = 1024;
+    flashlight.shadow.bias = -0.0005;
+    camera.add(flashlight);
+    camera.add(flashlight.target);
+    scene.add(camera);
+
+    createDust();
+    generateMaterials();
+    setupScreenParticles();
+    buildDetailedHallway();
+
+    window.addEventListener('resize', onWindowResize, false);
+    if (isMobile) setupMobileControls();
+    else setupDesktopControls();
+    setupInteraction();
+    animate();
+}
+
+function createTexture(width, height, drawFunction) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    drawFunction(ctx, width, height);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return tex;
+}
+
+function drawDirt(ctx, w, h, amount) {
+    for (let i = 0; i < amount; i++) {
+        ctx.fillStyle = `rgba(10, 10, 5, ${Math.random() * 0.1})`;
+        ctx.beginPath();
+        ctx.arc(Math.random() * w, Math.random() * h, Math.random() * 20 + 5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function drawPeelingPaint(ctx, w, h) {
+    for (let i = 0; i < 70; i++) {
+        ctx.fillStyle = `rgba(30, 25, 20, ${0.15 + Math.random() * 0.25})`;
+        ctx.beginPath();
+        const startX = Math.random() * w;
+        const startY = Math.random() * h;
+        ctx.moveTo(startX, startY);
+        for (let j = 0; j < 6; j++) {
+            ctx.lineTo(startX + (Math.random() - 0.5) * 120, startY + (Math.random() - 0.5) * 120);
+        }
+        ctx.closePath();
+        ctx.fill();
+    }
+    for (let i = 0; i < 12; i++) {
+        ctx.fillStyle = `rgba(120, 115, 100, ${0.2 + Math.random() * 0.2})`;
+        const sx = Math.random() * w, sy = Math.random() * h;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        for (let j = 0; j < 7; j++) {
+            ctx.lineTo(sx + (Math.random() - 0.5) * 90, sy + (Math.random() - 0.5) * 90);
+        }
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+
+function drawRustStreak(ctx, x, y, len, wid) {
+    const grad = ctx.createLinearGradient(x, y, x, y + len);
+    grad.addColorStop(0, 'rgba(90, 55, 20, 0.5)');
+    grad.addColorStop(0.7, 'rgba(60, 40, 15, 0.25)');
+    grad.addColorStop(1, 'rgba(40, 30, 15, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(x - wid / 2, y);
+    ctx.quadraticCurveTo(x + (Math.random() - 0.5) * wid, y + len * 0.5, x + (Math.random() - 0.5) * wid * 0.6, y + len);
+    ctx.lineTo(x + wid / 2 + (Math.random() - 0.5) * wid * 0.6, y + len);
+    ctx.quadraticCurveTo(x + (Math.random() - 0.5) * wid, y + len * 0.5, x + wid / 2, y);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function drawSprayText(ctx, text, x, y, size, options) {
+    options = options || {};
+    const color = options.color || 'rgba(8,8,8,0.88)';
+    const tilt = options.tilt !== undefined ? options.tilt : (Math.random() - 0.5) * 0.06;
+    const jitter = options.jitter !== undefined ? options.jitter : size * 0.045;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(tilt);
+    ctx.font = `bold ${size}px "Arial Black", Arial, sans-serif`;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = color;
+
+    let cursorX = 0;
+    for (let pass = 0; pass < 2; pass++) {
+        cursorX = 0;
+        const passAlpha = pass === 0 ? 1 : 0.35;
+        for (const ch of text) {
+            const w = ctx.measureText(ch).width;
+            const dx = (Math.random() - 0.5) * jitter * (pass === 0 ? 1 : 2.2);
+            const dy = (Math.random() - 0.5) * jitter * (pass === 0 ? 1 : 2.2);
+            ctx.globalAlpha = passAlpha * (0.75 + Math.random() * 0.25);
+            ctx.save();
+            ctx.translate(cursorX + dx, dy);
+            ctx.rotate((Math.random() - 0.5) * 0.05);
+            ctx.fillText(ch, 0, 0);
+            ctx.restore();
+            cursorX += w + size * 0.02;
+        }
+    }
+
+    ctx.globalAlpha = 1;
+    cursorX = 0;
+    for (const ch of text) {
+        const w = ctx.measureText(ch).width;
+        if (Math.random() > 0.62 && ch !== ' ') {
+            const dripX = cursorX + w * (0.3 + Math.random() * 0.4);
+            const dripLen = size * (0.15 + Math.random() * 0.5);
+            const dripGrad = ctx.createLinearGradient(dripX, 0, dripX, dripLen);
+            dripGrad.addColorStop(0, color);
+            dripGrad.addColorStop(1, 'rgba(8,8,8,0)');
+            ctx.fillStyle = dripGrad;
+            ctx.fillRect(dripX, -2, size * 0.035, dripLen);
+        }
+        cursorX += w + size * 0.02;
+    }
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = color;
+    for (let i = 0; i < 25; i++) {
+        ctx.beginPath();
+        ctx.arc(Math.random() * cursorX, (Math.random() - 0.5) * size * 1.4, Math.random() * 3 + 0.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    return cursorX;
+}
+
+function generateMaterials() {
+    const lowEnd = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    const floorTex = createTexture(2048, 2048, (ctx, w, h) => {
+        ctx.fillStyle = '#1c1f1b';
+        ctx.fillRect(0, 0, w, h);
+        for (let gx = 0; gx < w; gx += 160) {
+            for (let gy = 0; gy < h; gy += 160) {
+                const shade = 18 + Math.random() * 16;
+                ctx.fillStyle = `rgb(${shade + 7},${shade + 9},${shade + 6})`;
+                ctx.fillRect(gx + 2, gy + 2, 156, 156);
+                for (let s = 0; s < 6; s++) {
+                    ctx.fillStyle = `rgba(${shade + 15},${shade + 16},${shade + 13},${0.08 + Math.random() * 0.1})`;
+                    ctx.beginPath();
+                    ctx.arc(gx + Math.random() * 160, gy + Math.random() * 160, 8 + Math.random() * 22, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        drawDirt(ctx, w, h, 5000);
+        const sheen = ctx.createLinearGradient(0, 0, w, h);
+        sheen.addColorStop(0, 'rgba(140,150,160,0.03)');
+        sheen.addColorStop(0.5, 'rgba(140,150,160,0.01)');
+        sheen.addColorStop(1, 'rgba(140,150,160,0.04)');
+        ctx.fillStyle = sheen;
+        ctx.fillRect(0, 0, w, h);
+        for (let i = 0; i <= w; i += 160) {
+            ctx.strokeStyle = `rgba(6,6,5,${0.7 + Math.random() * 0.3})`;
+            ctx.lineWidth = 2.5 + Math.random() * 2;
+            ctx.beginPath();
+            ctx.moveTo(i + (Math.random() - 0.5) * 6, 0);
+            ctx.lineTo(i + (Math.random() - 0.5) * 6, h);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, i + (Math.random() - 0.5) * 6);
+            ctx.lineTo(w, i + (Math.random() - 0.5) * 6);
+            ctx.stroke();
+        }
+        for (let i = 0; i < 16; i++) {
+            const bx = Math.floor(Math.random() * 12) * 160 + 10;
+            const by = Math.floor(Math.random() * 12) * 160 + 10;
+            ctx.fillStyle = 'rgba(4,4,4,0.65)';
+            ctx.beginPath();
+            ctx.moveTo(bx, by);
+            for (let j = 0; j < 7; j++) ctx.lineTo(bx + Math.random() * 120, by + Math.random() * 120);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(150,145,130,0.25)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
+        for (let i = 0; i < 10; i++) {
+            ctx.strokeStyle = 'rgba(3,3,3,0.55)';
+            ctx.lineWidth = 1.2;
+            let cx = Math.random() * w, cy = Math.random() * h;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            for (let j = 0; j < 5; j++) {
+                cx += (Math.random() - 0.5) * 90;
+                cy += (Math.random() - 0.5) * 90;
+                ctx.lineTo(cx, cy);
+            }
+            ctx.stroke();
+        }
+        for (let i = 0; i < 7; i++) {
+            const mx = Math.random() * w, my = Math.random() * h, mr = 70 + Math.random() * 180;
+            const grad = ctx.createRadialGradient(mx, my, 0, mx, my, mr);
+            grad.addColorStop(0, 'rgba(18, 4, 4, 0.5)');
+            grad.addColorStop(0.4, 'rgba(18, 4, 4, 0.28)');
+            grad.addColorStop(1, 'rgba(18, 4, 4, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(mx, my, mr, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        for (let i = 0; i < 5; i++) {
+            const px = Math.random() * w, py = Math.random() * h, pr = 40 + Math.random() * 70;
+            const pgrad = ctx.createRadialGradient(px, py, 0, px, py, pr);
+            pgrad.addColorStop(0, 'rgba(10,14,16,0.35)');
+            pgrad.addColorStop(0.85, 'rgba(10,14,16,0.15)');
+            pgrad.addColorStop(1, 'rgba(180,190,200,0.12)');
+            ctx.fillStyle = pgrad;
+            ctx.beginPath();
+            ctx.ellipse(px, py, pr, pr * 0.6, Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+    floorTex.wrapS = THREE.RepeatWrapping;
+    floorTex.wrapT = THREE.RepeatWrapping;
+    floorTex.repeat.set(2.4, HALL_LENGTH / 9);
+
+    const floorNormalTex = createTexture(1024, 1024, (ctx, w, h) => {
+        ctx.fillStyle = '#8080ff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = 'rgba(90,90,255,0.9)';
+        ctx.lineWidth = 3;
+        for (let i = 0; i <= w; i += 80) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+        }
+        for (let i = 0; i < 4000; i++) {
+            const nx = 128 + Math.random() * 80;
+            ctx.fillStyle = `rgba(${nx},${nx},255,0.15)`;
+            ctx.beginPath();
+            ctx.arc(Math.random() * w, Math.random() * h, Math.random() * 6 + 1, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        for (let i = 0; i < 20; i++) {
+            const cx = Math.random() * w, cy = Math.random() * h;
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+            grad.addColorStop(0, 'rgba(70,70,255,0.8)');
+            grad.addColorStop(1, 'rgba(128,128,255,0)');
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(0, 0, 20 + Math.random() * 20, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    });
+    floorNormalTex.wrapS = THREE.RepeatWrapping;
+    floorNormalTex.wrapT = THREE.RepeatWrapping;
+    floorNormalTex.repeat.set(2.4, HALL_LENGTH / 9);
+
+    const floorRoughTex = createTexture(1024, 1024, (ctx, w, h) => {
+        ctx.fillStyle = '#e6e6e6';
+        ctx.fillRect(0, 0, w, h);
+        for (let i = 0; i < 5; i++) {
+            const cx = Math.random() * w, cy = Math.random() * h;
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60);
+            grad.addColorStop(0, 'rgba(30,30,30,1)');
+            grad.addColorStop(1, 'rgba(230,230,230,0)');
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(0, 0, 40 + Math.random() * 60, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    });
+    floorRoughTex.wrapS = THREE.RepeatWrapping;
+    floorRoughTex.wrapT = THREE.RepeatWrapping;
+    floorRoughTex.repeat.set(2.4, HALL_LENGTH / 9);
+
+    materials.floor = new THREE.MeshStandardMaterial(lowEnd ? {
+        map: floorTex,
+        roughness: 0.95,
+        metalness: 0.02
+    } : {
+        map: floorTex,
+        normalMap: floorNormalTex,
+        normalScale: new THREE.Vector2(1.1, 1.1),
+        roughnessMap: floorRoughTex,
+        roughness: 0.9,
+        metalness: 0.05
+    });
+
+    const rightWallTex = createTexture(2048, 1024, (ctx, w, h) => {
+        ctx.fillStyle = '#5f6055';
+        ctx.fillRect(0, 0, w, h);
+        drawPeelingPaint(ctx, w, h);
+        drawDirt(ctx, w, h, 3200);
+        drawRustStreak(ctx, w * 0.15, 0, h * 0.5, 30);
+        drawRustStreak(ctx, w * 0.72, 0, h * 0.65, 45);
+        ctx.fillStyle = '#332b1f';
+        ctx.fillRect(0, h / 2 - 20, w, 40);
+        for (let i = 0; i < 40; i++) {
+            ctx.fillStyle = 'rgba(20,17,12,0.5)';
+            ctx.fillRect(Math.random() * w, h / 2 - 22 + Math.random() * 44, 15 + Math.random() * 20, 4);
+        }
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, 'rgba(0,0,0,0.75)');
+        grad.addColorStop(0.2, 'transparent');
+        grad.addColorStop(0.8, 'transparent');
+        grad.addColorStop(1, 'rgba(0,0,0,0.9)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+    });
+    rightWallTex.wrapS = THREE.RepeatWrapping;
+    rightWallTex.wrapT = THREE.RepeatWrapping;
+    rightWallTex.repeat.set(HALL_LENGTH / 8, 1);
+    materials.rightWall = new THREE.MeshStandardMaterial({ map: rightWallTex, roughness: 0.92 });
+
+    const leftWallTex = createTexture(1024, 1024, (ctx, w, h) => {
+        ctx.fillStyle = '#5f6055';
+        ctx.fillRect(0, 0, w, h);
+        drawPeelingPaint(ctx, w, h);
+        drawDirt(ctx, w, h, 1800);
+        drawRustStreak(ctx, w * 0.3, 0, h * 0.4, 25);
+        ctx.fillStyle = '#332b1f';
+        ctx.fillRect(0, h / 2 - 20, w, 40);
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, 'rgba(0,0,0,0.75)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.75)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, 100);
+        ctx.fillRect(0, h - 100, w, 100);
+    });
+    leftWallTex.wrapS = THREE.RepeatWrapping;
+    leftWallTex.wrapT = THREE.RepeatWrapping;
+    leftWallTex.repeat.set(HALL_LENGTH / 8, 1);
+    materials.leftWall = new THREE.MeshStandardMaterial({ map: leftWallTex, roughness: 0.92 });
+
+    const ceilTex = createTexture(512, 512, (ctx, w, h) => {
+        ctx.fillStyle = '#5c5c58';
+        ctx.fillRect(0, 0, w, h);
+        drawDirt(ctx, w, h, 400);
+        ctx.strokeStyle = '#111';
+        ctx.lineWidth = 5;
+        for (let i = 0; i <= w; i += 128) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke(); }
+        for (let i = 0; i <= h; i += 128) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke(); }
+        for (let i = 0; i < 5; i++) {
+            const grad = ctx.createRadialGradient(Math.random() * w, Math.random() * h, 0, Math.random() * w, Math.random() * h, 40);
+            grad.addColorStop(0, 'rgba(90,75,30,0.35)');
+            grad.addColorStop(1, 'rgba(90,75,30,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+        }
+        ctx.fillStyle = '#040404';
+        ctx.fillRect(128, 128, 128, 128);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(128, 128, 128, 128);
+    });
+    ceilTex.wrapS = THREE.RepeatWrapping;
+    ceilTex.wrapT = THREE.RepeatWrapping;
+    ceilTex.repeat.set(2, HALL_LENGTH / 2);
+    materials.ceiling = new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 1.0 });
+
+    materials.doorTextures = ROOM_DATA.map((room, idx) => {
+        const hueShift = idx % 3;
+        const baseColors = ['#1c3a4a', '#2a3a2e', '#233240'];
+        const tex = createTexture(512, 1024, (ctx, w, h) => {
+            ctx.fillStyle = baseColors[hueShift];
+            ctx.fillRect(0, 0, w, h);
+            drawDirt(ctx, w, h, 900 + Math.floor(Math.random() * 400));
+            drawPeelingPaint(ctx, w, h);
+            drawRustStreak(ctx, w * 0.5 + (Math.random() - 0.5) * 100, 0, h * 0.6, 20);
+
+            // Placas superiores limpias, sin letreros de advertencia en todo el frente.
+            ctx.fillStyle = 'rgba(15,15,15,0.78)';
+            ctx.fillRect(50, 90, 412, 130);
+            ctx.strokeStyle = 'rgba(180,180,180,0.25)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(50, 90, 412, 130);
+
+            // Placa vacía y desgastada, sin textos visibles.
+            for (let i = 0; i < 12; i++) {
+                ctx.fillStyle = 'rgba(80,60,20,0.12)';
+                ctx.beginPath();
+                ctx.arc(Math.random() * w, Math.random() * h, 14 + Math.random() * 30, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.strokeStyle = '#0a0a0a';
+            ctx.lineWidth = 20;
+            ctx.strokeRect(0, 0, w, h);
+            for (let i = 0; i < 15; i++) {
+                ctx.strokeStyle = `rgba(200,200,190,${Math.random() * 0.15})`;
+                ctx.lineWidth = 1;
+                let sx = Math.random() * w;
+                ctx.beginPath();
+                ctx.moveTo(sx, Math.random() * h * 0.3);
+                ctx.lineTo(sx + (Math.random() - 0.5) * 10, Math.random() * h * 0.7 + h * 0.3);
+                ctx.stroke();
+            }
+        });
+        return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, metalness: 0.25 });
+    });
+
+    materials.rustyMetal = new THREE.MeshStandardMaterial({ color: 0x332211, roughness: 0.9, metalness: 0.6 });
+    materials.darkMetal = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, metalness: 0.8 });
+
+    const mattressTex = createTexture(512, 512, (ctx, w, h) => {
+        ctx.fillStyle = '#3d3a2c';
+        ctx.fillRect(0, 0, w, h);
+        drawDirt(ctx, w, h, 800);
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < w; i += 60) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke(); }
+        for (let i = 0; i < h; i += 60) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke(); }
+        for (let i = 0; i < 5; i++) {
+            const grad = ctx.createRadialGradient(Math.random() * w, Math.random() * h, 0, Math.random() * w, Math.random() * h, 50 + Math.random() * 60);
+            grad.addColorStop(0, 'rgba(25,15,10,0.5)');
+            grad.addColorStop(1, 'rgba(25,15,10,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+        }
+        for (let i = 0; i < 4; i++) {
+            ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            let sx = Math.random() * w, sy = Math.random() * h;
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(sx + (Math.random() - 0.5) * 80, sy + (Math.random() - 0.5) * 40);
+            ctx.stroke();
+        }
+    });
+    materials.mattress = new THREE.MeshStandardMaterial({ map: mattressTex, roughness: 1.0 });
+
+    const sheetTex = createTexture(256, 256, (ctx, w, h) => {
+        ctx.fillStyle = '#5c5c56';
+        ctx.fillRect(0, 0, w, h);
+        drawDirt(ctx, w, h, 500);
+        for (let i = 0; i < 3; i++) {
+            const grad = ctx.createRadialGradient(Math.random() * w, Math.random() * h, 0, Math.random() * w, Math.random() * h, 40);
+            grad.addColorStop(0, 'rgba(20,15,10,0.4)');
+            grad.addColorStop(1, 'rgba(20,15,10,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+        }
+    });
+    materials.sheet = new THREE.MeshStandardMaterial({ map: sheetTex, roughness: 0.95, side: THREE.DoubleSide });
+}
+
+function buildDetailedHallway() {
+    const floorGeo = new THREE.PlaneGeometry(HALL_WIDTH, HALL_LENGTH);
+    const floor = new THREE.Mesh(floorGeo, materials.floor);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, 0, -HALL_LENGTH / 2);
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const ceilGeo = new THREE.PlaneGeometry(HALL_WIDTH, HALL_LENGTH);
+    const ceiling = new THREE.Mesh(ceilGeo, materials.ceiling);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.set(0, WALL_HEIGHT, -HALL_LENGTH / 2);
+    ceiling.receiveShadow = true;
+    scene.add(ceiling);
+
+    const rightWallGeo = new THREE.PlaneGeometry(HALL_LENGTH, WALL_HEIGHT);
+    const rightWall = new THREE.Mesh(rightWallGeo, materials.rightWall);
+    rightWall.rotation.y = -Math.PI / 2;
+    rightWall.position.set(HALL_WIDTH / 2, WALL_HEIGHT / 2, -HALL_LENGTH / 2);
+    rightWall.receiveShadow = true;
+    scene.add(rightWall);
+
+    let zPos = 0;
+    let doorIndex = 0;
+    while (zPos > -HALL_LENGTH) {
+        if (Math.abs(zPos) % 8 === 4) {
+            createDetailedDoor(-HALL_WIDTH / 2, zPos, doorIndex % ROOM_DATA.length);
+            doorIndex++;
+        } else {
+            const segGeo = new THREE.PlaneGeometry(4, WALL_HEIGHT);
+            const segWall = new THREE.Mesh(segGeo, materials.leftWall);
+            segWall.rotation.y = Math.PI / 2;
+            segWall.position.set(-HALL_WIDTH / 2, WALL_HEIGHT / 2, zPos);
+            segWall.receiveShadow = true;
+            scene.add(segWall);
+        }
+        zPos -= 4;
+    }
+
+    createHospitalBed(HALL_WIDTH / 2 - 1.35, -6);
+    createHospitalBed(HALL_WIDTH / 2 - 1.5, -18);
+
+    createIVStand(-HALL_WIDTH / 2 + 0.8, -4);
+    createIVStand(-HALL_WIDTH / 2 + 0.5, -12);
+
+    createWheelchair(1, -25);
+    createWheelchair(-1, -35);
+
+    createDebris();
+
+    for (let z = -3; z > -HALL_LENGTH; z -= 10) {
+        createCeilingLight(0, z);
+    }
+}
+
+function createDetailedDoor(x, z, roomIdx) {
+    const group = new THREE.Group();
+    const room = ROOM_DATA[roomIdx];
+    const doorMat = materials.doorTextures[roomIdx];
+
+    const frameMat = materials.rustyMetal;
+
+    const frameL = new THREE.Mesh(new THREE.BoxGeometry(0.2, WALL_HEIGHT, 0.2), frameMat);
+    frameL.position.set(0, WALL_HEIGHT / 2, 0.9);
+    frameL.castShadow = true; frameL.receiveShadow = true;
+
+    const frameR = new THREE.Mesh(new THREE.BoxGeometry(0.2, WALL_HEIGHT, 0.2), frameMat);
+    frameR.position.set(0, WALL_HEIGHT / 2, -0.9);
+    frameR.castShadow = true; frameR.receiveShadow = true;
+
+    const frameT = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 2), frameMat);
+    frameT.position.set(0, WALL_HEIGHT - 0.1, 0);
+
+    group.add(frameL, frameR, frameT);
+
+    // Sellado oscuro detrás de la puerta para que no se vea "transparencia" hacia el cuarto
+    const sealGeo = new THREE.BoxGeometry(0.05, WALL_HEIGHT - 0.28, 1.72);
+    const sealMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 1.0, metalness: 0.0 });
+    const seal = new THREE.Mesh(sealGeo, sealMat);
+    seal.position.set(0.025, WALL_HEIGHT / 2 - 0.02, 0.0);
+    seal.castShadow = true;
+    seal.receiveShadow = true;
+    group.add(seal);
+
+    const doorGeo = new THREE.BoxGeometry(0.1, WALL_HEIGHT - 0.2, 1.8);
+    const door = new THREE.Mesh(doorGeo, doorMat);
+    door.geometry.translate(0, 0, -0.9);
+    door.position.set(0.1, WALL_HEIGHT / 2 - 0.1, 0.9);
+    door.castShadow = true;
+    door.receiveShadow = true;
+    group.add(door);
+
+    const startsAjar = false;
+    const closedAngle = 0;
+    const openAngle = Math.PI / 1.9;
+    door.rotation.y = closedAngle;
+    seal.visible = true;
+
+    group.position.set(x, 0, z);
+    scene.add(group);
+
+    const roomBounds = createRoomInterior(x, z, roomIdx);
+
+    doors.push({
+        doorMesh: door,
+        sealMesh: seal,
+        group,
+        worldPos: new THREE.Vector3(x, 1.4, z),
+        isOpen: startsAjar,
+        targetAngle: startsAjar ? openAngle : closedAngle,
+        openAngle,
+        closedAngle,
+        currentAngle: door.rotation.y,
+        roomLabel: `${room.num} · ${room.label}`,
+        doorZMin: z - 0.9,
+        doorZMax: z + 0.9,
+        roomBounds
+    });
+}
+
+function createRoomInterior(doorX, doorZ, roomIdx) {
+    const room = ROOM_DATA[roomIdx];
+    const group = new THREE.Group();
+    const roomHalfWidth = ROOM_WIDTH / 2;
+    const roomHalfDepth = ROOM_DEPTH / 2;
+    const centerX = doorX - roomHalfWidth - 0.18;
+    const doorOpeningWidth = 1.7;
+    const wallThickness = 0.16;
+    const topGapHeight = WALL_HEIGHT - 1.9;
+
+    // Piso y techo más amplios para sentirse como cuarto real de hospital
+    const roomFloorGeo = new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_DEPTH);
+    const roomFloor = new THREE.Mesh(roomFloorGeo, materials.floor);
+    roomFloor.rotation.x = -Math.PI / 2;
+    roomFloor.position.set(centerX, 0, doorZ);
+    roomFloor.receiveShadow = true;
+    group.add(roomFloor);
+
+    const roomCeilGeo = new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_DEPTH);
+    const roomCeil = new THREE.Mesh(roomCeilGeo, materials.ceiling);
+    roomCeil.rotation.x = Math.PI / 2;
+    roomCeil.position.set(centerX, WALL_HEIGHT, doorZ);
+    roomCeil.receiveShadow = true;
+    group.add(roomCeil);
+
+    // Pared trasera
+    const backWallGeo = new THREE.BoxGeometry(wallThickness, WALL_HEIGHT, ROOM_DEPTH);
+    const backWall = new THREE.Mesh(backWallGeo, materials.leftWall);
+    backWall.position.set(centerX - roomHalfWidth + wallThickness / 2, WALL_HEIGHT / 2, doorZ);
+    backWall.castShadow = true;
+    backWall.receiveShadow = true;
+    group.add(backWall);
+
+    // Paredes laterales
+    const sideWallGeo = new THREE.BoxGeometry(ROOM_WIDTH, WALL_HEIGHT, wallThickness);
+    const sideWallA = new THREE.Mesh(sideWallGeo, materials.rightWall);
+    sideWallA.position.set(centerX, WALL_HEIGHT / 2, doorZ + roomHalfDepth - wallThickness / 2);
+    sideWallA.castShadow = true;
+    sideWallA.receiveShadow = true;
+    group.add(sideWallA);
+
+    const sideWallB = new THREE.Mesh(sideWallGeo, materials.rightWall);
+    sideWallB.position.set(centerX, WALL_HEIGHT / 2, doorZ - roomHalfDepth + wallThickness / 2);
+    sideWallB.castShadow = true;
+    sideWallB.receiveShadow = true;
+    group.add(sideWallB);
+
+    // Frente cerrado con vano de puerta bien sellado
+    const frontLeftLen = (ROOM_DEPTH - doorOpeningWidth) / 2;
+    const frontRightLen = frontLeftLen;
+    const frontSideGeo = new THREE.BoxGeometry(wallThickness, WALL_HEIGHT, frontLeftLen);
+    const frontLeft = new THREE.Mesh(frontSideGeo, materials.leftWall);
+    frontLeft.position.set(doorX - wallThickness / 2, WALL_HEIGHT / 2, doorZ - (doorOpeningWidth / 2 + frontLeftLen / 2));
+    frontLeft.castShadow = true;
+    frontLeft.receiveShadow = true;
+    group.add(frontLeft);
+
+    const frontRight = new THREE.Mesh(frontSideGeo, materials.leftWall);
+    frontRight.position.set(doorX - wallThickness / 2, WALL_HEIGHT / 2, doorZ + (doorOpeningWidth / 2 + frontRightLen / 2));
+    frontRight.castShadow = true;
+    frontRight.receiveShadow = true;
+    group.add(frontRight);
+
+    const frontTopGeo = new THREE.BoxGeometry(wallThickness, topGapHeight, doorOpeningWidth);
+    const frontTop = new THREE.Mesh(frontTopGeo, materials.leftWall);
+    frontTop.position.set(doorX - wallThickness / 2, WALL_HEIGHT - topGapHeight / 2, doorZ);
+    frontTop.castShadow = true;
+    frontTop.receiveShadow = true;
+    group.add(frontTop);
+
+    // Umbral oscuro para que la puerta no deje ver "aire" a través
+    const thresholdGeo = new THREE.BoxGeometry(0.12, 0.05, doorOpeningWidth - 0.1);
+    const threshold = new THREE.Mesh(thresholdGeo, materials.darkMetal);
+    threshold.position.set(doorX - 0.02, 0.025, doorZ);
+    threshold.castShadow = true;
+    threshold.receiveShadow = true;
+    group.add(threshold);
+
+    // Luz interior más amplia y más natural
+    const roomLight = new THREE.PointLight(0x8899aa, 4.4, 8);
+    roomLight.position.set(centerX, WALL_HEIGHT - 0.45, doorZ);
+    roomLight.castShadow = false;
+    group.add(roomLight);
+    lights.push({ light: roomLight, mat: null, baseInt: 4.4, isBroken: Math.random() > 0.5 });
+
+    // Mobiliario más acorde al tamaño real del cuarto
+    if (room.label === 'MORGUE') {
+        const slabGeo = new THREE.BoxGeometry(0.95, 0.52, 2.3);
+        const slab = new THREE.Mesh(slabGeo, materials.darkMetal);
+        slab.position.set(centerX - 0.85, 0.26, doorZ);
+        slab.castShadow = true; slab.receiveShadow = true;
+        group.add(slab);
+    } else if (room.label === 'FARMACIA' || room.label === 'ARCHIVO') {
+        for (let i = 0; i < 3; i++) {
+            const shelfGeo = new THREE.BoxGeometry(0.34, 1.9, 0.9);
+            const shelf = new THREE.Mesh(shelfGeo, materials.rustyMetal);
+            shelf.position.set(centerX - roomHalfWidth + 0.55, 0.95, doorZ - 1.6 + i * 1.6);
+            shelf.castShadow = true; shelf.receiveShadow = true;
+            group.add(shelf);
+        }
+    } else if (room.label === 'AISLAMIENTO' || room.label === 'PSIQUIATRÍA') {
+        const padGeo = new THREE.BoxGeometry(2.0, 0.16, 0.8);
+        const padMat = new THREE.MeshStandardMaterial({ color: 0x2a2620, roughness: 1.0 });
+        const pad = new THREE.Mesh(padGeo, padMat);
+        pad.position.set(centerX - 0.65, 0.08, doorZ + 1.0);
+        pad.rotation.y = Math.random() * Math.PI * 0.5;
+        pad.castShadow = true; pad.receiveShadow = true;
+        group.add(pad);
+    } else {
+        const chair = createHospitalChair(centerX - 1.1, 0.0, doorZ + 1.1);
+        group.add(chair);
+    }
+
+    // Papeles y suciedad, pero sin saturar el suelo
+    const paperMat = new THREE.MeshStandardMaterial({ color: 0xdcdccb, roughness: 1.0, side: THREE.DoubleSide });
+    for (let i = 0; i < 4; i++) {
+        const paperGeo = new THREE.PlaneGeometry(0.2, 0.28);
+        const paper = new THREE.Mesh(paperGeo, paperMat);
+        paper.position.set(centerX + (Math.random() - 0.5) * (ROOM_WIDTH - 0.8), 0.012, doorZ + (Math.random() - 0.5) * (ROOM_DEPTH - 0.8));
+        paper.rotation.x = -Math.PI / 2;
+        paper.rotation.z = Math.random() * Math.PI;
+        paper.receiveShadow = true;
+        group.add(paper);
+    }
+
+    scene.add(group);
+
+    return {
+        xMin: centerX - roomHalfWidth + 0.5,
+        xMax: doorX - 0.35,
+        zMin: doorZ - roomHalfDepth + 0.5,
+        zMax: doorZ + roomHalfDepth - 0.5
+    };
+}
+
+function createCeilingLight(x, z) {
+    const group = new THREE.Group();
+
+    // Carcasa exterior más realista: caja metálica envejecida
+    const housingGeo = new THREE.BoxGeometry(1.15, 0.14, 2.0);
+    const housing = new THREE.Mesh(housingGeo, materials.darkMetal);
+    housing.position.y = WALL_HEIGHT - 0.06;
+    housing.castShadow = true;
+    housing.receiveShadow = true;
+    group.add(housing);
+
+    // Difusor translúcido
+    const diffuserGeo = new THREE.BoxGeometry(1.02, 0.06, 1.72);
+    const diffuserMat = new THREE.MeshStandardMaterial({
+        color: 0xeaf1f7,
+        emissive: 0xc8ddff,
+        emissiveIntensity: 0.55,
+        transparent: true,
+        opacity: 0.72,
+        roughness: 0.42,
+        metalness: 0.0
+    });
+    const diffuser = new THREE.Mesh(diffuserGeo, diffuserMat);
+    diffuser.position.y = WALL_HEIGHT - 0.11;
+    group.add(diffuser);
+
+    // Tubos internos
+    const tubeGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.92, 12);
+    const tubeMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xf0f6ff,
+        emissiveIntensity: 1.8,
+        roughness: 0.18,
+        metalness: 0.02
+    });
+    const tubeA = new THREE.Mesh(tubeGeo, tubeMat);
+    tubeA.rotation.x = Math.PI / 2;
+    tubeA.position.set(-0.22, WALL_HEIGHT - 0.11, 0);
+    group.add(tubeA);
+
+    const tubeB = new THREE.Mesh(tubeGeo, tubeMat);
+    tubeB.rotation.x = Math.PI / 2;
+    tubeB.position.set(0.22, WALL_HEIGHT - 0.11, 0);
+    group.add(tubeB);
+
+    // Tornillos y mugre
+    const screwGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.03, 8);
+    for (const sx of [-0.5, 0.5]) {
+        for (const sz of [-0.84, 0.84]) {
+            const screw = new THREE.Mesh(screwGeo, materials.rustyMetal);
+            screw.rotation.x = Math.PI / 2;
+            screw.position.set(sx, WALL_HEIGHT - 0.015, sz);
+            group.add(screw);
+        }
+    }
+
+    // Luz real: spot suave hacia abajo + punto de apoyo
+    const spot = new THREE.SpotLight(0xdcecff, 8.5, 13, Math.PI / 4.8, 0.52, 1.5);
+    spot.position.set(x, WALL_HEIGHT - 0.16, z);
+    spot.target.position.set(x, 0.1, z);
+    spot.castShadow = false;
+    scene.add(spot);
+    scene.add(spot.target);
+
+    const light = new THREE.PointLight(0xdcecff, 6.5, 12);
+    light.position.set(x, WALL_HEIGHT - 0.18, z);
+    light.castShadow = false;
+    scene.add(light);
+
+    // Halo sutil
+    const haloGeo = new THREE.PlaneGeometry(2.6, 1.25);
+    const haloMat = new THREE.MeshBasicMaterial({
+        color: 0xbfd6ff,
+        transparent: true,
+        opacity: 0.085,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const halo = new THREE.Mesh(haloGeo, haloMat);
+    halo.position.set(0, WALL_HEIGHT - 0.1, 0);
+    group.add(halo);
+
+    // Panel lateral tenue
+    const trimGeo = new THREE.BoxGeometry(1.2, 0.03, 2.08);
+    const trim = new THREE.Mesh(trimGeo, materials.rustyMetal);
+    trim.position.y = WALL_HEIGHT - 0.02;
+    group.add(trim);
+
+    group.position.set(x, 0, z);
+    scene.add(group);
+
+    lights.push({
+        light,
+        spot,
+        mat: tubeMat,
+        baseInt: 6.5,
+        spotBase: 8.5,
+        isBroken: Math.random() > 0.45
+    });
+}
+
+function createHospitalChair(x, y, z) {
+    const group = new THREE.Group();
+
+    const seatMat = materials.darkMetal;
+    const frameMat = materials.rustyMetal;
+
+    // Asiento ligeramente redondeado
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.05, 0.5, 2, 1, 2), seatMat);
+    seat.position.y = 0.42;
+    seat.rotation.z = 0.02;
+    seat.castShadow = true;
+    seat.receiveShadow = true;
+    group.add(seat);
+
+    const cushion = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24, 0.24, 0.5, 10, 1, false),
+        new THREE.MeshStandardMaterial({ color: 0x3b372c, roughness: 1.0 })
+    );
+    cushion.rotation.z = Math.PI / 2;
+    cushion.position.set(0, 0.47, 0);
+    cushion.castShadow = true;
+    group.add(cushion);
+
+    // Respaldo tubular, más parecido a silla hospitalaria real
+    const backFrame = new THREE.Group();
+    const backPostGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.7, 8);
+    const backBar = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.52, 8), frameMat);
+    backBar.rotation.z = Math.PI / 2;
+    backBar.position.set(0, 0.73, -0.19);
+    backBar.castShadow = true;
+    backFrame.add(backBar);
+
+    const leftPost = new THREE.Mesh(backPostGeo, frameMat);
+    leftPost.position.set(-0.22, 0.75, -0.18);
+    leftPost.rotation.z = -0.06;
+    leftPost.castShadow = true;
+    backFrame.add(leftPost);
+
+    const rightPost = new THREE.Mesh(backPostGeo, frameMat);
+    rightPost.position.set(0.22, 0.75, -0.18);
+    rightPost.rotation.z = 0.06;
+    rightPost.castShadow = true;
+    backFrame.add(rightPost);
+
+    group.add(backFrame);
+
+    // Brazos
+    const armGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.5, 8);
+    const armL = new THREE.Mesh(armGeo, frameMat);
+    armL.rotation.z = Math.PI / 2;
+    armL.position.set(-0.02, 0.63, 0.23);
+    armL.castShadow = true;
+    group.add(armL);
+
+    const armR = new THREE.Mesh(armGeo, frameMat);
+    armR.rotation.z = Math.PI / 2;
+    armR.position.set(-0.02, 0.63, -0.23);
+    armR.castShadow = true;
+    group.add(armR);
+
+    // Patas más finas y con barras de refuerzo
+    const legGeo = new THREE.CylinderGeometry(0.017, 0.02, 0.43, 8);
+    const legPos = [
+        [-0.22, 0.215, -0.2], [0.22, 0.215, -0.2],
+        [-0.22, 0.215, 0.2], [0.22, 0.215, 0.2]
+    ];
+    legPos.forEach(([lx, ly, lz]) => {
+        const leg = new THREE.Mesh(legGeo, frameMat);
+        leg.position.set(lx, ly, lz);
+        leg.castShadow = true;
+        group.add(leg);
+    });
+
+    const brace1 = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.03, 0.03), seatMat);
+    brace1.position.set(0, 0.18, 0);
+    brace1.rotation.z = 0.02;
+    group.add(brace1);
+
+    const brace2 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.44), seatMat);
+    brace2.position.set(0, 0.18, 0);
+    brace2.rotation.z = -0.02;
+    group.add(brace2);
+
+    // Cuatro pequeñas gomas/patas
+    const footGeo = new THREE.CylinderGeometry(0.022, 0.025, 0.03, 10);
+    [[-0.2, -0.01, -0.18], [0.2, -0.01, -0.18], [-0.2, -0.01, 0.18], [0.2, -0.01, 0.18]].forEach(([lx, ly, lz]) => {
+        const foot = new THREE.Mesh(footGeo, materials.darkMetal);
+        foot.position.set(lx, ly, lz);
+        foot.castShadow = true;
+        group.add(foot);
+    });
+
+    group.position.set(x, y, z);
+    group.rotation.y = Math.random() * Math.PI * 2;
+    return group;
+}
+
+function createHospitalBed(x, z) {
+    const group = new THREE.Group();
+    const bedLength = 2.0, bedWidth = 0.9, bedHeight = 0.75;
+
+    function createEndPanel(zOffset) {
+        const panelGroup = new THREE.Group();
+        const postGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.35);
+        for (let i = -1; i <= 1; i++) {
+            const post = new THREE.Mesh(postGeo, materials.rustyMetal);
+            post.position.set(i * bedWidth / 2, bedHeight + 0.15, 0);
+            post.castShadow = true;
+            panelGroup.add(post);
+        }
+        const railGeo = new THREE.CylinderGeometry(0.02, 0.02, bedWidth);
+        const rail = new THREE.Mesh(railGeo, materials.rustyMetal);
+        rail.rotation.z = Math.PI / 2;
+        rail.position.set(0, bedHeight + 0.3, 0);
+        rail.castShadow = true;
+        panelGroup.add(rail);
+        panelGroup.position.z = zOffset;
+        return panelGroup;
+    }
+
+    function createSideRail(xSide, lowered) {
+        const railGroup = new THREE.Group();
+        const barGeo = new THREE.CylinderGeometry(0.018, 0.018, bedLength * 0.85);
+        for (let level = 0; level < 2; level++) {
+            const bar = new THREE.Mesh(barGeo, materials.darkMetal);
+            bar.rotation.x = Math.PI / 2;
+            bar.position.set(0, 0.15 + level * 0.13, 0);
+            railGroup.add(bar);
+        }
+        railGroup.position.set(xSide, bedHeight + (lowered ? 0.02 : 0.22), 0);
+        if (lowered) railGroup.rotation.z = xSide > 0 ? -0.55 : 0.55;
+        railGroup.traverse(c => { if (c.isMesh) c.castShadow = true; });
+        return railGroup;
+    }
+
+    group.add(createEndPanel(bedLength / 2));
+    group.add(createEndPanel(-bedLength / 2));
+    group.add(createSideRail(bedWidth / 2, false));
+    group.add(createSideRail(-bedWidth / 2, true));
+
+    const frameGeo = new THREE.BoxGeometry(bedWidth, 0.06, bedLength);
+    const frame = new THREE.Mesh(frameGeo, materials.darkMetal);
+    frame.position.y = bedHeight;
+    frame.castShadow = true;
+    frame.receiveShadow = true;
+    group.add(frame);
+
+    const meshGeo = new THREE.PlaneGeometry(bedWidth - 0.05, bedLength - 0.05, 6, 10);
+    const meshMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6, metalness: 0.7, wireframe: true });
+    const meshPlane = new THREE.Mesh(meshGeo, meshMat);
+    meshPlane.rotation.x = -Math.PI / 2;
+    meshPlane.position.y = bedHeight - 0.01;
+    group.add(meshPlane);
+
+    const mattGeo = new THREE.BoxGeometry(bedWidth - 0.08, 0.18, bedLength - 0.1, 8, 2, 12);
+    const posAttr = mattGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+        const yVal = posAttr.getY(i);
+        if (yVal > 0) posAttr.setY(i, yVal + (Math.random() - 0.5) * 0.035);
+    }
+    posAttr.needsUpdate = true;
+    mattGeo.computeVertexNormals();
+    const mattress = new THREE.Mesh(mattGeo, materials.mattress);
+    mattress.position.y = bedHeight + 0.1;
+    mattress.rotation.z = (Math.random() - 0.5) * 0.04;
+    mattress.castShadow = true;
+    mattress.receiveShadow = true;
+    group.add(mattress);
+
+    const sheetGeo = new THREE.PlaneGeometry(0.9, 1.6, 6, 10);
+    const sheetPos = sheetGeo.attributes.position;
+    for (let i = 0; i < sheetPos.count; i++) {
+        sheetPos.setZ(i, Math.sin(sheetPos.getY(i) * 3 + sheetPos.getX(i) * 2) * 0.05);
+    }
+    sheetPos.needsUpdate = true;
+    sheetGeo.computeVertexNormals();
+    const sheet = new THREE.Mesh(sheetGeo, materials.sheet);
+    sheet.position.set(-bedWidth / 2 - 0.05, bedHeight - 0.55, 0.1);
+    sheet.rotation.y = Math.PI / 2;
+    sheet.rotation.z = 0.15;
+    sheet.castShadow = true;
+    group.add(sheet);
+
+    const pillowGeo = new THREE.BoxGeometry(0.5, 0.1, 0.35, 4, 2, 4);
+    const pillowPos = pillowGeo.attributes.position;
+    for (let i = 0; i < pillowPos.count; i++) {
+        if (pillowPos.getY(i) > 0) pillowPos.setY(i, pillowPos.getY(i) + (Math.random() - 0.5) * 0.04);
+    }
+    pillowPos.needsUpdate = true;
+    pillowGeo.computeVertexNormals();
+    const pillow = new THREE.Mesh(pillowGeo, materials.sheet);
+    pillow.position.set(0.05, bedHeight + 0.22, bedLength / 2 - 0.35);
+    pillow.rotation.y = 0.3;
+    pillow.castShadow = true;
+    group.add(pillow);
+
+    const legGeo = new THREE.CylinderGeometry(0.03, 0.03, bedHeight - 0.1);
+    const wheelGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.04);
+    for (let i = -1; i <= 1; i += 2) {
+        for (let j = -1; j <= 1; j += 2) {
+            const legX = i * (bedWidth / 2 - 0.05), legZ = j * (bedLength / 2 - 0.1);
+            const leg = new THREE.Mesh(legGeo, materials.rustyMetal);
+            leg.position.set(legX, (bedHeight - 0.1) / 2, legZ);
+            leg.castShadow = true;
+            group.add(leg);
+
+            const wheelPivot = new THREE.Group();
+            wheelPivot.position.set(legX, 0.06, legZ);
+            wheelPivot.rotation.y = Math.random() * Math.PI;
+            const wheel = new THREE.Mesh(wheelGeo, materials.darkMetal);
+            wheel.rotation.z = Math.PI / 2;
+            wheel.castShadow = true;
+            wheelPivot.add(wheel);
+            group.add(wheelPivot);
+        }
+    }
+
+    const trayTopGeo = new THREE.BoxGeometry(0.35, 0.02, 0.22);
+    const trayTop = new THREE.Mesh(trayTopGeo, materials.darkMetal);
+    const trayLegGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.7);
+    const trayLeg = new THREE.Mesh(trayLegGeo, materials.rustyMetal);
+    const trayGroup = new THREE.Group();
+    trayGroup.add(trayTop, trayLeg);
+    trayTop.position.y = 0.35;
+    trayLeg.position.y = 0.35;
+    trayGroup.position.set(x + 0.35, 0, z + 0.6);
+    trayGroup.rotation.z = 0.4;
+    trayGroup.rotation.x = 0.1;
+    group.add(trayGroup);
+
+    group.position.set(x, 0, z);
+    scene.add(group);
+}
+
+function createIVStand(x, z) {
+    const group = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.8), materials.darkMetal);
+    pole.position.y = 0.9;
+    group.add(pole);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.05, 5), materials.rustyMetal);
+    base.position.y = 0.025;
+    group.add(base);
+    const hook1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.35), materials.darkMetal);
+    hook1.position.set(0.08, 1.72, 0);
+    hook1.rotation.z = 0.6;
+    group.add(hook1);
+    const hook2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.35), materials.darkMetal);
+    hook2.position.set(-0.08, 1.72, 0);
+    hook2.rotation.z = -0.6;
+    group.add(hook2);
+    group.position.set(x, 0, z);
+    scene.add(group);
+}
+
+function createWheelchair(x, z) {
+    const group = new THREE.Group();
+
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.55), materials.darkMetal);
+    seat.position.set(0, 0.48, 0);
+    seat.rotation.z = -0.05;
+    seat.castShadow = true;
+    group.add(seat);
+
+    const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.06, 0.5), materials.sheet);
+    cushion.position.set(0, 0.54, 0);
+    cushion.rotation.z = -0.03;
+    cushion.castShadow = true;
+    group.add(cushion);
+
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.72, 0.08), materials.rustyMetal);
+    back.position.set(-0.02, 0.88, -0.24);
+    back.rotation.z = -0.03;
+    back.castShadow = true;
+    back.receiveShadow = true;
+    group.add(back);
+
+    const armGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.62, 8);
+    const armL = new THREE.Mesh(armGeo, materials.darkMetal);
+    armL.rotation.z = Math.PI / 2;
+    armL.position.set(-0.02, 0.76, 0.23);
+    armL.castShadow = true;
+    group.add(armL);
+
+    const armR = new THREE.Mesh(armGeo, materials.darkMetal);
+    armR.rotation.z = Math.PI / 2;
+    armR.position.set(-0.02, 0.76, -0.23);
+    armR.castShadow = true;
+    group.add(armR);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.08, 18);
+    const wheel1 = new THREE.Mesh(wheelGeo, materials.darkMetal);
+    wheel1.rotation.z = Math.PI / 2;
+    wheel1.position.set(0.26, 0.3, 0.28);
+    wheel1.castShadow = true;
+    group.add(wheel1);
+
+    const wheel2 = new THREE.Mesh(wheelGeo, materials.darkMetal);
+    wheel2.rotation.z = Math.PI / 2;
+    wheel2.position.set(0.26, 0.3, -0.28);
+    wheel2.castShadow = true;
+    group.add(wheel2);
+
+    const smallWheelGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.04, 12);
+    const wheel3 = new THREE.Mesh(smallWheelGeo, materials.rustyMetal);
+    wheel3.rotation.z = Math.PI / 2;
+    wheel3.position.set(-0.26, 0.12, 0.22);
+    wheel3.castShadow = true;
+    group.add(wheel3);
+
+    const wheel4 = new THREE.Mesh(smallWheelGeo, materials.rustyMetal);
+    wheel4.rotation.z = Math.PI / 2;
+    wheel4.position.set(-0.26, 0.12, -0.22);
+    wheel4.castShadow = true;
+    group.add(wheel4);
+
+    const handle1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.48, 0.04), materials.darkMetal);
+    handle1.position.set(-0.18, 1.05, 0.18);
+    handle1.rotation.z = 0.18;
+    group.add(handle1);
+
+    const handle2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.48, 0.04), materials.darkMetal);
+    handle2.position.set(-0.18, 1.05, -0.18);
+    handle2.rotation.z = 0.18;
+    group.add(handle2);
+
+    const footGeo = new THREE.BoxGeometry(0.5, 0.04, 0.14);
+    const foot = new THREE.Mesh(footGeo, materials.rustyMetal);
+    foot.position.set(0.18, 0.2, 0);
+    foot.rotation.z = 0.05;
+    foot.castShadow = true;
+    group.add(foot);
+
+    group.rotation.y = Math.random() * Math.PI * 2;
+    group.position.set(x, 0, z);
+    scene.add(group);
+}
+
+function createDebris() {
+    // Escombros más orgánicos: papeles, fragmentos de panel y pequeñas piezas caídas.
+    const debrisGroup = new THREE.Group();
+
+    for (let i = 0; i < 22; i++) {
+        const roll = Math.random();
+        let mesh;
+
+        if (roll < 0.45) {
+            const geo = new THREE.PlaneGeometry(0.16 + Math.random() * 0.2, 0.12 + Math.random() * 0.16, 1, 1);
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0xd6d2c2,
+                roughness: 1.0,
+                side: THREE.DoubleSide
+            });
+            mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.rotation.z = Math.random() * Math.PI;
+            mesh.position.y = 0.011;
+        } else if (roll < 0.75) {
+            const geo = new THREE.BoxGeometry(0.04 + Math.random() * 0.08, 0.015 + Math.random() * 0.03, 0.04 + Math.random() * 0.08);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x665c4a, roughness: 1.0 });
+            mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            mesh.position.y = 0.02;
+        } else {
+            const geo = new THREE.CylinderGeometry(0.015, 0.02, 0.12 + Math.random() * 0.08, 8);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x5a4a38, roughness: 1.0 });
+            mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            mesh.position.y = 0.06;
+        }
+
+        mesh.position.x = (Math.random() - 0.5) * (HALL_WIDTH - 1.2);
+        mesh.position.z = -4 - Math.random() * (HALL_LENGTH - 8);
+        mesh.position.y += 0.002;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        debrisGroup.add(mesh);
+    }
+
+    scene.add(debrisGroup);
+}
+
+function createDust() {
+    const geo = new THREE.BufferGeometry();
+    const count = 1800;
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count * 3; i += 3) {
+        pos[i] = (Math.random() - 0.5) * HALL_WIDTH;
+        pos[i + 1] = Math.random() * WALL_HEIGHT;
+        pos[i + 2] = -Math.random() * HALL_LENGTH;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({ color: 0xaaa8a0, size: 0.018, transparent: true, opacity: 0.32 });
+    scene.particles = new THREE.Points(geo, mat);
+    scene.add(scene.particles);
+}
+
+let screenParticleCanvas = null;
+let screenParticleCtx = null;
+let screenParticles = [];
+
+function setupScreenParticles() {
+    screenParticleCanvas = document.getElementById('fx-particles');
+    if (!screenParticleCanvas) return;
+    screenParticleCtx = screenParticleCanvas.getContext('2d');
+
+    const resize = () => {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        screenParticleCanvas.width = Math.floor(window.innerWidth * dpr);
+        screenParticleCanvas.height = Math.floor(window.innerHeight * dpr);
+        screenParticleCanvas.style.width = window.innerWidth + 'px';
+        screenParticleCanvas.style.height = window.innerHeight + 'px';
+        screenParticleCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    resize();
+    window.addEventListener('resize', resize, false);
+
+    screenParticles = Array.from({ length: 360 }, () => ({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        vx: (Math.random() - 0.5) * 0.28,
+        vy: 0.04 + Math.random() * 0.22,
+        size: 0.7 + Math.random() * 3.8,
+        alpha: 0.02 + Math.random() * 0.12,
+        rot: Math.random() * Math.PI,
+        spin: (Math.random() - 0.5) * 0.03,
+        pulse: Math.random() * Math.PI * 2,
+        depth: Math.random(),
+        trail: 0.25 + Math.random() * 0.55
+    }));
+}
+
+function updateScreenParticles() {
+    if (!screenParticleCtx || !screenParticleCanvas) return;
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    screenParticleCtx.clearRect(0, 0, w, h);
+    screenParticleCtx.globalCompositeOperation = 'screen';
+
+    const motionBoost = 1 + Math.min(1, direction.length()) * 0.75;
+
+    for (const p of screenParticles) {
+        p.x += p.vx * motionBoost * 60 * deltaTime;
+        p.y += p.vy * motionBoost * 60 * deltaTime;
+        p.rot += p.spin;
+        p.pulse += deltaTime * 2.5;
+
+        if (p.y > h + 10) {
+            p.y = -10;
+            p.x = Math.random() * w;
+        }
+        if (p.x < -10) p.x = w + 10;
+        if (p.x > w + 10) p.x = -10;
+
+        const twinkle = 0.65 + Math.sin(p.pulse) * 0.35;
+        const s = p.size * twinkle;
+        const a = p.alpha * (0.55 + p.depth * 0.75);
+
+        screenParticleCtx.save();
+        screenParticleCtx.translate(p.x, p.y);
+        screenParticleCtx.rotate(p.rot);
+
+        const glow = screenParticleCtx.createLinearGradient(-s, -s, s, s);
+        glow.addColorStop(0, `rgba(255,255,255,0)`);
+        glow.addColorStop(0.5, `rgba(210, 225, 240, ${a * 0.55})`);
+        glow.addColorStop(1, `rgba(255,255,255,0)`);
+        screenParticleCtx.fillStyle = glow;
+        screenParticleCtx.fillRect(-s * 1.35, -s * 1.35, s * 2.7, s * 2.7);
+
+        screenParticleCtx.fillStyle = `rgba(235, 242, 248, ${a})`;
+        screenParticleCtx.fillRect(-s / 2, -s / 2, s, s);
+
+        screenParticleCtx.fillStyle = `rgba(255, 255, 255, ${a * 0.38})`;
+        screenParticleCtx.fillRect(-s * 0.16, -s * 0.16, s * 0.32, s * 0.32);
+
+        if (p.trail > 0.45) {
+            screenParticleCtx.fillStyle = `rgba(200, 220, 240, ${a * 0.12})`;
+            screenParticleCtx.fillRect(-s * 0.08, s * 0.55, s * 0.16, s * (0.7 + p.trail));
+        }
+
+        screenParticleCtx.restore();
+    }
+
+    screenParticleCtx.globalCompositeOperation = 'source-over';
+}
+
+function checkBoundary(pos) {
+    const limitXRight = (HALL_WIDTH / 2) - 0.5;
+    const limitXLeftHall = -(HALL_WIDTH / 2) + 0.5;
+
+    if (pos.x > limitXRight) pos.x = limitXRight;
+    if (pos.z > 2) pos.z = 2;
+    if (pos.z < -HALL_LENGTH + 2) pos.z = -HALL_LENGTH + 2;
+
+    if (pos.x < limitXLeftHall) {
+        let inOpenDoorway = null;
+        for (const d of doors) {
+            if (d.isOpen && pos.z <= d.doorZMax && pos.z >= d.doorZMin) {
+                inOpenDoorway = d;
+                break;
+            }
+        }
+        if (inOpenDoorway) {
+            const b = inOpenDoorway.roomBounds;
+            if (pos.x < b.xMin) pos.x = b.xMin;
+            if (pos.x > b.xMax) pos.x = b.xMax;
+            if (pos.z < b.zMin) pos.z = b.zMin;
+            if (pos.z > b.zMax) pos.z = b.zMax;
+        } else {
+            pos.x = limitXLeftHall;
+        }
+    }
+}
+
+function toggleNearestDoor() {
+    if (!nearestDoor) return;
+    nearestDoor.isOpen = !nearestDoor.isOpen;
+    nearestDoor.targetAngle = nearestDoor.isOpen ? nearestDoor.openAngle : nearestDoor.closedAngle;
+    if (nearestDoor.sealMesh) nearestDoor.sealMesh.visible = !nearestDoor.isOpen;
+}
+
+function setupInteraction() {
+    const interactBtn = document.getElementById('interact-btn');
+
+    if (!isMobile) {
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyE') toggleNearestDoor();
+        });
+    } else {
+        interactBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            toggleNearestDoor();
+        }, { passive: false });
+    }
+}
+
+function updateDoorInteraction() {
+    const prompt = document.getElementById('interact-prompt');
+    let closest = null;
+    let closestDist = DOOR_INTERACT_DIST;
+
+    doors.forEach(d => {
+        const dist = camera.position.distanceTo(d.worldPos);
+        if (dist < closestDist) {
+            closestDist = dist;
+            closest = d;
+        }
+        const diff = d.targetAngle - d.currentAngle;
+        if (Math.abs(diff) > 0.001) {
+            d.currentAngle += diff * Math.min(1, deltaTime * 5);
+            d.doorMesh.rotation.y = d.currentAngle;
+        }
+        if (d.sealMesh) d.sealMesh.visible = !d.isOpen;
+    });
+
+    nearestDoor = closest;
+    if (nearestDoor) {
+        prompt.style.display = 'block';
+        prompt.textContent = nearestDoor.isOpen
+            ? `[ E ] CERRAR PUERTA`
+            : `[ E ] ABRIR PUERTA`;
+    } else {
+        prompt.style.display = 'none';
+    }
+}
+
+function setupMobileControls() {
+    const joyZone = document.getElementById('joystick-zone');
+    const joyKnob = document.getElementById('joystick-knob');
+    const lookZone = document.getElementById('look-zone');
+
+    joyZone.addEventListener('touchstart', (e) => {
+        const t = e.changedTouches[0];
+        touchLeftId = t.identifier;
+        joyStartX = t.clientX;
+        joyStartY = t.clientY;
+        updateJoystick(joyStartX, joyStartY, joyKnob);
+    }, { passive: true });
+
+    joyZone.addEventListener('touchmove', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const t = e.changedTouches[i];
+            if (t.identifier === touchLeftId) {
+                updateJoystick(t.clientX, t.clientY, joyKnob);
+                e.preventDefault();
+            }
+        }
+    }, { passive: false });
+
+    joyZone.addEventListener('touchend', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === touchLeftId) {
+                touchLeftId = null;
+                joyCurrentX = 0;
+                joyCurrentY = 0;
+                joyKnob.style.transform = 'translate(-50%, -50%)';
+            }
+        }
+    });
+
+    lookZone.addEventListener('touchstart', (e) => {
+        const t = e.changedTouches[0];
+        touchRightId = t.identifier;
+        lookLastX = t.clientX;
+        lookLastY = t.clientY;
+    }, { passive: true });
+
+    lookZone.addEventListener('touchmove', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const t = e.changedTouches[i];
+            if (t.identifier === touchRightId) {
+                const deltaX = t.clientX - lookLastX;
+                const deltaY = t.clientY - lookLastY;
+                yaw -= deltaX * 0.004;
+                pitch -= deltaY * 0.004;
+                pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, pitch));
+                lookLastX = t.clientX;
+                lookLastY = t.clientY;
+                e.preventDefault();
+            }
+        }
+    }, { passive: false });
+
+    lookZone.addEventListener('touchend', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === touchRightId) touchRightId = null;
+        }
+    });
+}
+
+function updateJoystick(x, y, knob) {
+    let dx = x - joyStartX;
+    let dy = y - joyStartY;
+    let dist = Math.sqrt(dx * dx + dy * dy);
+    const maxDist = 50;
+    if (dist > maxDist) {
+        dx = (dx / dist) * maxDist;
+        dy = (dy / dist) * maxDist;
+    }
+    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    joyCurrentX = dx / maxDist;
+    joyCurrentY = dy / maxDist;
+}
+
+function setupDesktopControls() {
+    document.addEventListener('keydown', (e) => {
+        switch (e.code) {
+            case 'KeyW': moveForward = true; break;
+            case 'KeyA': moveLeft = true; break;
+            case 'KeyS': moveBackward = true; break;
+            case 'KeyD': moveRight = true; break;
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        switch (e.code) {
+            case 'KeyW': moveForward = false; break;
+            case 'KeyA': moveLeft = false; break;
+            case 'KeyS': moveBackward = false; break;
+            case 'KeyD': moveRight = false; break;
+        }
+    });
+
+    const body = document.body;
+    const requestPointerLockFn =
+        body?.requestPointerLock?.bind(body) ||
+        body?.mozRequestPointerLock?.bind(body);
+
+    if (requestPointerLockFn) {
+        body.addEventListener('click', () => {
+            if (document.getElementById('menu-screen').style.display === 'none') {
+                requestPointerLockFn();
+            }
+        });
+    }
+
+    document.addEventListener('mousemove', (e) => {
+        const locked = document.pointerLockElement === body || document.mozPointerLockElement === body;
+        if (!requestPointerLockFn || locked) {
+            yaw -= e.movementX * 0.002;
+            pitch -= e.movementY * 0.002;
+            pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, pitch));
+        }
+    });
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    deltaTime = Math.min(0.05, clock.getDelta());
+
+    const moving = direction.length() > 0 || Math.abs(joyCurrentX) > 0.01 || Math.abs(joyCurrentY) > 0.01;
+    const walkCycle = clock.elapsedTime * (moving ? 10.5 : 3.0);
+    const bobTarget = moving ? Math.sin(walkCycle) * 0.072 : 0;
+    const rollTarget = moving ? (-direction.x * 0.06) + Math.sin(walkCycle * 0.7) * 0.014 : 0;
+
+    cameraBob += (bobTarget - cameraBob) * 0.16;
+    cameraRoll += (rollTarget - cameraRoll) * 0.14;
+
+    camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, cameraRoll, 'YXZ'));
+
+    direction.z = Number(moveForward) - Number(moveBackward);
+    direction.x = Number(moveRight) - Number(moveLeft);
+
+    if (isMobile) {
+        direction.z = -joyCurrentY;
+        direction.x = joyCurrentX;
+    }
+
+    direction.normalize();
+
+    if (direction.length() > 0) {
+        const cYaw = Math.cos(yaw);
+        const sYaw = Math.sin(yaw);
+        const moveX = direction.x * moveSpeed * deltaTime;
+        const moveZ = direction.z * moveSpeed * deltaTime;
+
+        const pX = moveX * cYaw + moveZ * sYaw;
+        const pZ = -moveX * sYaw + moveZ * cYaw;
+        camera.position.x += pX;
+        camera.position.z += pZ;
+
+        checkBoundary(camera.position);
+
+        flashlight.position.x = 0.2 + Math.sin(clock.elapsedTime * 4) * 0.05;
+        flashlight.position.y = -0.2 + Math.cos(clock.elapsedTime * 4) * 0.05;
+    }
+
+    camera.position.y = 1.6 + cameraBob + (moving ? Math.sin(clock.elapsedTime * 18) * 0.01 : Math.sin(clock.elapsedTime * 2) * 0.015);
+
+    lights.forEach(l => {
+        if (l.isBroken) {
+            const flicker = Math.random();
+            if (flicker > 0.9) {
+                l.light.intensity = Math.random() * l.baseInt * 0.45;
+                if (l.spot) l.spot.intensity = Math.random() * l.spotBase * 0.45;
+                if (l.mat) l.mat.emissiveIntensity = 0.45;
+            } else if (flicker > 0.965) {
+                l.light.intensity = l.baseInt;
+                if (l.spot) l.spot.intensity = l.spotBase;
+                if (l.mat) l.mat.emissiveIntensity = 1.8;
+            }
+        }
+    });
+
+    if (scene.particles) {
+        const positions = scene.particles.geometry.attributes.position.array;
+        for (let i = 1; i < positions.length; i += 3) {
+            positions[i] -= deltaTime * 0.1;
+            if (positions[i] < 0) positions[i] = WALL_HEIGHT;
+            positions[i - 1] += Math.sin(clock.elapsedTime * 0.5 + i) * 0.005;
+        }
+        scene.particles.geometry.attributes.position.needsUpdate = true;
+    }
+
+    updateScreenParticles();
+    updateDoorInteraction();
+    renderer.render(scene, camera);
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+document.getElementById('start-btn').addEventListener('click', () => {
+    document.getElementById('menu-screen').style.display = 'none';
+    document.getElementById('ui-layer').style.display = 'block';
+    init();
+});
+
+</script>
+</body>
+</html>
