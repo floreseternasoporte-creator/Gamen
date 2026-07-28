@@ -2245,14 +2245,14 @@ function createWheelchair(x, z) {
         fork.position.y = CR + 0.04;
         cg.add(fork);
 
-        // Caster tyre
+        // Caster tyre — rotation.y puts the torus in the YZ plane so it rolls along Z
         const cTire = new THREE.Mesh(new THREE.TorusGeometry(CR, 0.020, 6, 12), rubberMat);
-        cTire.rotation.x = Math.PI / 2;
+        cTire.rotation.y = Math.PI / 2;
         cTire.castShadow = true; cg.add(cTire);
 
-        // Caster hub
+        // Caster hub — rotation.z aligns the cylinder axle along X (left-right)
         const cHub = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.030, 8), rimMat);
-        cHub.rotation.x = Math.PI / 2; cg.add(cHub);
+        cHub.rotation.z = Math.PI / 2; cg.add(cHub);
 
         cg.position.set(cx, CR + 0.005, 0.25);
         cg.rotation.y = 0;
