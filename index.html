@@ -221,16 +221,6 @@
             z-index: 8;
         }
 
-        /* ── Blood drip canvas ─────────────────────────────────────────────── */
-        #drip-canvas {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 7;
-        }
-
         /* ── Screen glitch overlay ─────────────────────────────────────────── */
         #glitch-layer {
             position: absolute;
@@ -257,6 +247,371 @@
                          drop-shadow(2px 0 0 rgba(0,80,255,0.18)); }
         }
         #game-canvas.ca-flash { animation: caFlash 0.28s ease-out forwards; }
+
+        /* ══════════════════════════════════════════════════════════════════════
+           INTRO SCREEN — CRT TV
+        ══════════════════════════════════════════════════════════════════════ */
+        #intro-screen {
+            position: absolute;
+            inset: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            animation: introShake 0.18s infinite;
+        }
+        @keyframes introShake {
+            0%   { transform: translate(0,0) rotate(0deg); }
+            20%  { transform: translate(-1.5px, 1px) rotate(-0.3deg); }
+            40%  { transform: translate(1.5px, -1px) rotate(0.2deg); }
+            60%  { transform: translate(-1px, -1.5px) rotate(-0.15deg); }
+            80%  { transform: translate(1px, 1.5px) rotate(0.25deg); }
+            100% { transform: translate(0,0) rotate(0deg); }
+        }
+        #intro-screen::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.92) 100%);
+            pointer-events: none;
+        }
+        .tv-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .tv-cabinet {
+            position: relative;
+            width: min(380px, 88vw);
+            background: linear-gradient(160deg, #1a1810 0%, #0e0d09 60%, #1a1810 100%);
+            border-radius: 18px 18px 22px 22px;
+            padding: 20px 20px 28px;
+            box-shadow:
+                0 0 0 3px #2a2820,
+                0 0 0 5px #111,
+                0 8px 60px rgba(0,0,0,0.95),
+                inset 0 2px 4px rgba(255,255,200,0.04);
+        }
+        .tv-screen-border {
+            background: #0a0900;
+            border-radius: 12px;
+            padding: 6px;
+            box-shadow:
+                inset 0 0 20px rgba(0,0,0,0.9),
+                inset 0 0 3px rgba(255,220,100,0.08);
+        }
+        .tv-screen {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: radial-gradient(ellipse at 50% 40%, #0a1a08 0%, #030a02 70%, #000 100%);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 18px rgba(80,255,60,0.08) inset;
+        }
+        .tv-screen::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                to bottom,
+                transparent 0px, transparent 2px,
+                rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 3px
+            );
+            pointer-events: none;
+            z-index: 3;
+        }
+        .tv-screen::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 100%);
+            pointer-events: none;
+            z-index: 4;
+        }
+        .tv-content {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            gap: 6px;
+        }
+        .tv-static {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            opacity: 0.07;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            animation: staticAnim 0.09s steps(1) infinite;
+        }
+        @keyframes staticAnim {
+            0%   { transform: translate(0,0); }
+            25%  { transform: translate(-3%,-2%); }
+            50%  { transform: translate(2%,3%); }
+            75%  { transform: translate(-2%,1%); }
+            100% { transform: translate(1%,-1%); }
+        }
+        .tv-title {
+            font-family: 'Courier New', monospace;
+            font-size: clamp(0.85rem, 3.5vw, 1.4rem);
+            color: #7dff60;
+            text-shadow: 0 0 12px rgba(100,255,70,0.8), 0 0 30px rgba(60,200,40,0.4);
+            letter-spacing: 3px;
+            text-align: center;
+            text-transform: uppercase;
+            animation: tvFlicker 4s steps(1) infinite;
+        }
+        .tv-subtitle {
+            font-family: 'Courier New', monospace;
+            font-size: clamp(0.45rem, 1.8vw, 0.7rem);
+            color: rgba(120,255,90,0.55);
+            letter-spacing: 2px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        .tv-year {
+            font-family: 'Courier New', monospace;
+            font-size: clamp(0.55rem, 2.5vw, 0.9rem);
+            color: rgba(80,220,60,0.6);
+            letter-spacing: 4px;
+            margin-top: 8px;
+            animation: blink 1.1s step-end infinite;
+        }
+        @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+        @keyframes tvFlicker {
+            0%,96%,98%,100% { opacity: 1; }
+            97%             { opacity: 0.1; }
+            99%             { opacity: 0.4; }
+        }
+        .tv-legs {
+            display: flex;
+            justify-content: space-around;
+            width: 60%;
+            margin-top: 0;
+        }
+        .tv-leg {
+            width: 14px;
+            height: 28px;
+            background: linear-gradient(to bottom, #1a1810, #0a0a08);
+            border-radius: 0 0 5px 5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.8);
+        }
+        .tv-knobs {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .tv-knob {
+            width: 14px;
+            height: 14px;
+            background: radial-gradient(circle at 35% 35%, #3a3828, #111);
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.8), inset 0 1px 2px rgba(255,255,200,0.06);
+        }
+        .tv-antenna-left, .tv-antenna-right {
+            position: absolute;
+            bottom: 100%;
+            width: 3px;
+            background: linear-gradient(to top, #2a2820, #1a1810);
+            transform-origin: bottom center;
+            border-radius: 2px 2px 0 0;
+        }
+        .tv-antenna-left  { left: 30%; height: 50px; transform: rotate(-20deg); }
+        .tv-antenna-right { right: 30%; height: 60px; transform: rotate(15deg); }
+        .tv-glow {
+            position: absolute;
+            inset: -10px;
+            border-radius: 20px;
+            background: radial-gradient(ellipse at 50% 50%, rgba(60,220,40,0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .intro-welcome {
+            margin-top: 28px;
+            font-family: 'Courier New', monospace;
+            font-size: clamp(1.6rem, 5vw, 2.8rem);
+            color: #e8e0cc;
+            letter-spacing: 8px;
+            text-transform: uppercase;
+            text-shadow: 0 0 20px rgba(200,180,120,0.4);
+        }
+        .intro-sub {
+            margin-top: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: clamp(0.55rem, 2vw, 0.82rem);
+            color: #555;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+        #intro-continue-btn {
+            margin-top: 28px;
+            padding: 14px 44px;
+            font-family: 'Courier New', monospace;
+            font-size: clamp(0.85rem, 2.5vw, 1.1rem);
+            background: transparent;
+            color: #ccc8b8;
+            border: 1px solid #443f30;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: pulseBorder 2.5s ease-in-out infinite;
+        }
+        #intro-continue-btn:hover {
+            background: rgba(255,255,255,0.05);
+            border-color: #aaa;
+            color: #fff;
+            box-shadow: 0 0 20px rgba(255,255,255,0.08);
+        }
+        @keyframes pulseBorder {
+            0%,100% { border-color: #443f30; box-shadow: none; }
+            50%      { border-color: #776f50; box-shadow: 0 0 10px rgba(180,160,80,0.15); }
+        }
+
+        /* ══════════════════════════════════════════════════════════════════════
+           STORY SCREEN
+        ══════════════════════════════════════════════════════════════════════ */
+        #story-screen {
+            position: absolute;
+            inset: 0;
+            background: #000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 190;
+        }
+        #story-screen::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, rgba(10,5,5,0.4) 0%, rgba(0,0,0,0.96) 100%);
+            pointer-events: none;
+        }
+        .story-box {
+            position: relative;
+            max-width: min(680px, 90vw);
+            padding: 40px 50px;
+            border: 1px solid rgba(80,60,40,0.4);
+            background: rgba(8,5,3,0.7);
+            box-shadow: 0 0 80px rgba(0,0,0,0.9), inset 0 0 40px rgba(0,0,0,0.5);
+        }
+        .story-date {
+            font-family: 'Courier New', monospace;
+            font-size: 0.72rem;
+            color: #553322;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+        #story-text {
+            font-family: 'Courier New', monospace;
+            font-size: clamp(0.78rem, 2vw, 0.96rem);
+            color: #b8a898;
+            line-height: 1.9;
+            min-height: 180px;
+            white-space: pre-wrap;
+        }
+        #story-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 1em;
+            background: #b8a898;
+            vertical-align: text-bottom;
+            animation: blink 0.7s step-end infinite;
+        }
+        #story-begin-btn {
+            display: none;
+            margin-top: 36px;
+            padding: 14px 50px;
+            font-family: 'Courier New', monospace;
+            font-size: clamp(0.85rem, 2.5vw, 1.05rem);
+            background: transparent;
+            color: #c8a860;
+            border: 1px solid #6a5030;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: pulseBorder 2s ease-in-out infinite;
+        }
+        #story-begin-btn:hover {
+            background: rgba(200,150,60,0.08);
+            border-color: #c8a860;
+            box-shadow: 0 0 20px rgba(200,150,60,0.12);
+        }
+
+        /* ══════════════════════════════════════════════════════════════════════
+           TELEKINESIS HUD
+        ══════════════════════════════════════════════════════════════════════ */
+        #tk-btn {
+            position: absolute;
+            bottom: 160px;
+            right: 30px;
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: rgba(100,40,180,0.15);
+            border: 2px solid rgba(160,80,255,0.35);
+            color: rgba(200,130,255,0.9);
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            touch-action: none;
+            flex-direction: column;
+            gap: 2px;
+        }
+        #tk-btn.active {
+            background: rgba(160,60,255,0.3);
+            border-color: rgba(200,120,255,0.8);
+            box-shadow: 0 0 20px rgba(160,60,255,0.5);
+        }
+        #tk-reticle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%,-50%);
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+            display: none;
+            z-index: 21;
+        }
+        #tk-reticle svg {
+            width: 100%;
+            height: 100%;
+            animation: tkSpin 2s linear infinite;
+        }
+        @keyframes tkSpin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+        #tk-hint {
+            position: absolute;
+            bottom: 36%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 21;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            color: rgba(200,130,255,0.85);
+            letter-spacing: 2px;
+            background: rgba(0,0,0,0.55);
+            padding: 6px 14px;
+            border: 1px solid rgba(160,80,255,0.25);
+            display: none;
+            pointer-events: none;
+            text-transform: uppercase;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -268,7 +623,6 @@
 <div id="dirt-overlay"></div>
 <div id="vignette-flash"></div>
 <div id="heartbeat-vignette"></div>
-<canvas id="drip-canvas"></canvas>
 <div id="scanlines"></div>
 <div id="glitch-layer"></div>
 <div id="interact-prompt">[ E ] ABRIR PUERTA</div>
@@ -277,19 +631,64 @@
     <div id="joystick-zone"><div id="joystick-knob"></div></div>
     <div id="look-zone"></div>
     <div id="interact-btn">ABRIR</div>
+    <div id="tk-btn">✦<br>MIND</div>
     <div id="crosshair"></div>
 </div>
-
-<div id="menu-screen">
-    <h1>PABELLÓN ABANDONADO</h1>
-    <p>Motor de Renderizado AAAA. Texturas Procedurales e Iluminación Global.</p>
-    <p style="font-size: 0.8rem; color: #555;">
-        CONTROLES:<br>
-        Móvil: Joystick izquierdo para caminar, arrastra la pantalla derecha para mirar, botón ABRIR para interactuar.<br>
-        PC: WASD y Ratón (click para bloquear), tecla E para abrir puertas.
-    </p>
-    <button id="start-btn">EXPLORAR</button>
+<div id="tk-reticle">
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="20" r="17" stroke="rgba(180,100,255,0.7)" stroke-width="1.5" stroke-dasharray="6 4"/>
+        <circle cx="20" cy="20" r="4" fill="rgba(200,130,255,0.5)"/>
+        <line x1="20" y1="2" x2="20" y2="10" stroke="rgba(180,100,255,0.8)" stroke-width="1.5"/>
+        <line x1="20" y1="30" x2="20" y2="38" stroke="rgba(180,100,255,0.8)" stroke-width="1.5"/>
+        <line x1="2" y1="20" x2="10" y2="20" stroke="rgba(180,100,255,0.8)" stroke-width="1.5"/>
+        <line x1="30" y1="20" x2="38" y2="20" stroke="rgba(180,100,255,0.8)" stroke-width="1.5"/>
+    </svg>
 </div>
+<div id="tk-hint"></div>
+
+<!-- ══ INTRO SCREEN ══════════════════════════════════════════════════ -->
+<div id="intro-screen">
+    <div class="tv-wrapper">
+        <div class="tv-cabinet">
+            <div class="tv-antenna-left"></div>
+            <div class="tv-antenna-right"></div>
+            <div class="tv-screen-border">
+                <div class="tv-screen">
+                    <div class="tv-static"></div>
+                    <div class="tv-content">
+                        <div class="tv-title">PABELLÓN<br>ABANDONADO</div>
+                        <div class="tv-subtitle">Psychiatric Ward — Level 01</div>
+                        <div class="tv-year">■ BROADCASTING ■</div>
+                    </div>
+                </div>
+            </div>
+            <div class="tv-knobs">
+                <div class="tv-knob"></div>
+                <div class="tv-knob"></div>
+                <div class="tv-knob"></div>
+            </div>
+        </div>
+        <div class="tv-legs">
+            <div class="tv-leg"></div>
+            <div class="tv-leg"></div>
+        </div>
+        <div class="tv-glow"></div>
+        <div class="intro-welcome">WELCOME</div>
+        <div class="intro-sub">A Horror Experience</div>
+        <button id="intro-continue-btn">[ CONTINUE ]</button>
+    </div>
+</div>
+
+<!-- ══ STORY SCREEN ══════════════════════════════════════════════════ -->
+<div id="story-screen">
+    <div class="story-box">
+        <div class="story-date">▸ CLASSIFIED FILE — YEAR 1908 ◂</div>
+        <div id="story-text"></div><span id="story-cursor"></span>
+        <button id="story-begin-btn">[ BEGIN ]</button>
+    </div>
+</div>
+
+<!-- ══ GAME UI (hidden until game starts) ══════════════════════════ -->
 
 <script>
 
@@ -315,8 +714,6 @@ let receptionScreens = [];
 let nearestDoor = null;
 let materials = {};
 let ghostLights = [];
-let dripParticles = [];
-let dripCanvas2D, dripCtx2D;
 let glitchTimer = 12;
 let heartbeatEl;
 
@@ -345,17 +742,6 @@ const ROOM_DATA = [
 function initEffects() {
     heartbeatEl = document.getElementById('heartbeat-vignette');
 
-    // ── Blood drip canvas ─────────────────────────────────────────────────
-    dripCanvas2D = document.getElementById('drip-canvas');
-    dripCanvas2D.width  = window.innerWidth;
-    dripCanvas2D.height = window.innerHeight;
-    dripCtx2D = dripCanvas2D.getContext('2d');
-
-    // Spawn drip particles along the top edge
-    for (let i = 0; i < 10; i++) {
-        spawnDrip(true);
-    }
-
     // ── Ghost / atmosphere lights (very dim wandering colours) ────────────
     const ghostColors = [0x003344, 0x1a0005, 0x100018];
     ghostColors.forEach((col, i) => {
@@ -373,38 +759,6 @@ function initEffects() {
             sp: 0.10 + Math.random() * 0.09
         });
     });
-}
-
-function spawnDrip(randomY) {
-    const side = Math.random();
-    dripParticles.push({
-        x: side < 0.33
-            ? Math.random() * window.innerWidth * 0.22                        // left cluster
-            : side < 0.66
-                ? window.innerWidth * 0.38 + Math.random() * window.innerWidth * 0.24  // center
-                : window.innerWidth * 0.78 + Math.random() * window.innerWidth * 0.22, // right cluster
-        y: randomY ? -Math.random() * window.innerHeight * 0.3 : -10,
-        speed: 0.22 + Math.random() * 0.38,
-        w: 2 + Math.random() * 2.5,
-        len: 28 + Math.random() * 65,
-        op: 0.28 + Math.random() * 0.35,
-    });
-}
-
-function drawDroplet(ctx, x, y, w, len, op) {
-    const grad = ctx.createLinearGradient(x, y - len, x, y + w);
-    grad.addColorStop(0,   `rgba(90,0,0,0)`);
-    grad.addColorStop(0.25,`rgba(110,0,0,${op * 0.55})`);
-    grad.addColorStop(1,   `rgba(145,0,0,${op})`);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.moveTo(x - w / 2, y - len);
-    ctx.lineTo(x + w / 2, y - len);
-    ctx.lineTo(x + w / 2, y);
-    ctx.quadraticCurveTo(x + w / 2, y + w * 0.9, x, y + w * 0.9);
-    ctx.quadraticCurveTo(x - w / 2, y + w * 0.9, x - w / 2, y);
-    ctx.closePath();
-    ctx.fill();
 }
 
 function updateEffects(t) {
@@ -426,21 +780,6 @@ function updateEffects(t) {
     const hbAlpha = pulse * 0.30;
     heartbeatEl.style.background =
         `radial-gradient(ellipse 100% 80% at 50% 50%, transparent 30%, rgba(70,0,0,${hbAlpha}) 100%)`;
-
-    // ── Blood drips ───────────────────────────────────────────────────────
-    if (dripCtx2D) {
-        dripCtx2D.clearRect(0, 0, dripCanvas2D.width, dripCanvas2D.height);
-        for (let i = dripParticles.length - 1; i >= 0; i--) {
-            const dp = dripParticles[i];
-            dp.y += dp.speed;
-            if (dp.y - dp.len > dripCanvas2D.height + 20) {
-                dripParticles.splice(i, 1);
-                spawnDrip(false);
-                continue;
-            }
-            drawDroplet(dripCtx2D, dp.x, dp.y, dp.w, dp.len, dp.op);
-        }
-    }
 
     // ── Random screen glitch ──────────────────────────────────────────────
     glitchTimer -= deltaTime;
@@ -511,7 +850,10 @@ function init() {
 
     window.addEventListener('resize', onWindowResize, false);
     if (isMobile) setupMobileControls();
-    else setupDesktopControls();
+    else {
+        setupDesktopControls();
+        document.getElementById('tk-btn').style.display = 'none';
+    }
     setupInteraction();
     animate();
 }
@@ -1072,12 +1414,6 @@ function buildDetailedHallway() {
     createHospitalBed(HALL_WIDTH / 2 - 1.5, -18);
     createHospitalBed(HALL_WIDTH / 2 - 1.4, -30);
     createHospitalBed(HALL_WIDTH / 2 - 1.45, -50);
-
-    createIVStand(-HALL_WIDTH / 2 + 0.8, -4);
-    createIVStand(-HALL_WIDTH / 2 + 0.5, -12);
-    createIVStand(-HALL_WIDTH / 2 + 0.75, -22);
-    createIVStand(HALL_WIDTH / 2 - 0.65, -33);
-    createIVStand(-HALL_WIDTH / 2 + 0.6, -45);
 
     createWheelchair(1, -25);
     createWheelchair(-1, -35);
@@ -1768,7 +2104,7 @@ function createWheelchair(x, z) {
         cHub.rotation.x = Math.PI / 2; cg.add(cHub);
 
         cg.position.set(cx, CR + 0.005, 0.25);
-        cg.rotation.y = (Math.random() - 0.5) * 1.2;
+        cg.rotation.y = 0;
         group.add(cg);
     }
 
@@ -1789,6 +2125,7 @@ function createWheelchair(x, z) {
     group.rotation.z = (Math.random() - 0.5) * 0.05;
     group.position.set(x, 0, z);
     scene.add(group);
+    registerThrowable(group);
 }
 
 function createDebris() {
@@ -1827,6 +2164,7 @@ function createDebris() {
     }
 
     scene.add(debrisGroup);
+    registerThrowable(debrisGroup);
 }
 
 function createDust() {
@@ -2815,7 +3153,7 @@ function setupDesktopControls() {
 
     if (requestPointerLockFn) {
         body.addEventListener('click', () => {
-            if (document.getElementById('menu-screen').style.display === 'none') {
+            if (document.getElementById('ui-layer').style.display !== 'none') {
                 requestPointerLockFn();
             }
         });
@@ -2956,6 +3294,7 @@ function animate() {
     updateScreenParticles();
     updateDoorInteraction();
     updateEffects(clock.elapsedTime);
+    updateTelekinesis(deltaTime);
     renderer.render(scene, camera);
 }
 
@@ -2963,17 +3302,252 @@ function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    if (dripCanvas2D) {
-        dripCanvas2D.width  = window.innerWidth;
-        dripCanvas2D.height = window.innerHeight;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INTRO & STORY SCREEN LOGIC
+// ═══════════════════════════════════════════════════════════════════════════
+
+const STORY_TEXT =
+`In the winter of 1908, the Pabellón Psychiatric Hospital
+was sealed by government order — without explanation.
+
+47 patients vanished overnight.
+Staff found only silence... and scratch marks on every door.
+
+Investigators who entered the building reported lights
+moving by themselves. Objects hurled across rooms.
+A presence that whispered their names in the dark.
+
+The entity was never identified. The case was buried.
+
+You are Detective VANE.
+
+You were born with a gift — you see what others cannot.
+You sense the supernatural. And with your mind alone...
+you can move objects. Bend them to your will.
+
+Tonight, you enter Pabellón.
+Tonight, you find the truth.
+
+The demon inside already knows you're coming.`;
+
+let storyTypingIdx = 0;
+let storyTypingTimer = null;
+
+function startStoryTyping() {
+    const el = document.getElementById('story-text');
+    el.textContent = '';
+    storyTypingIdx = 0;
+    function typeNext() {
+        if (storyTypingIdx < STORY_TEXT.length) {
+            el.textContent += STORY_TEXT[storyTypingIdx++];
+            const delay = STORY_TEXT[storyTypingIdx - 1] === '\n' ? 60 :
+                          STORY_TEXT[storyTypingIdx - 1] === '.' ? 120 : 28;
+            storyTypingTimer = setTimeout(typeNext, delay);
+        } else {
+            document.getElementById('story-cursor').style.display = 'none';
+            const btn = document.getElementById('story-begin-btn');
+            btn.style.display = 'block';
+        }
+    }
+    typeNext();
+}
+
+document.getElementById('intro-continue-btn').addEventListener('click', () => {
+    const introEl = document.getElementById('intro-screen');
+    introEl.style.transition = 'opacity 0.8s ease';
+    introEl.style.opacity = '0';
+    setTimeout(() => {
+        introEl.style.display = 'none';
+        const storyEl = document.getElementById('story-screen');
+        storyEl.style.display = 'flex';
+        storyEl.style.opacity = '0';
+        storyEl.style.transition = 'opacity 0.8s ease';
+        requestAnimationFrame(() => {
+            storyEl.style.opacity = '1';
+            startStoryTyping();
+        });
+    }, 800);
+});
+
+// Tap on story screen to skip typing
+document.getElementById('story-screen').addEventListener('click', () => {
+    if (storyTypingIdx < STORY_TEXT.length) {
+        clearTimeout(storyTypingTimer);
+        const el = document.getElementById('story-text');
+        el.textContent = STORY_TEXT;
+        storyTypingIdx = STORY_TEXT.length;
+        document.getElementById('story-cursor').style.display = 'none';
+        const btn = document.getElementById('story-begin-btn');
+        btn.style.display = 'block';
+    }
+});
+
+document.getElementById('story-begin-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const storyEl = document.getElementById('story-screen');
+    storyEl.style.transition = 'opacity 0.9s ease';
+    storyEl.style.opacity = '0';
+    setTimeout(() => {
+        storyEl.style.display = 'none';
+        document.getElementById('ui-layer').style.display = 'block';
+        init();
+    }, 900);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TELEKINESIS SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+let tkMode = false;               // telekinesis active
+let tkTarget = null;              // current grabbed object (THREE.Object3D)
+let tkTargetGroup = null;         // top-level group
+let tkLiftProgress = 0;           // 0→1 as object rises
+let tkLifted = false;             // object is fully up and held
+let tkThrowVelocity = new THREE.Vector3();
+let tkObjects = [];               // throwable scene objects
+let tkInFlight = [];              // { obj, vel, life } thrown objects
+const TK_LIFT_HEIGHT = 1.5;
+const TK_HOLD_DIST   = 3.0;
+const TK_THROW_SPEED = 18;
+const raycaster = new THREE.Raycaster();
+
+function registerThrowable(obj) {
+    tkObjects.push(obj);
+}
+
+function toggleTelekinesis() {
+    if (tkLifted && tkTarget) {
+        // Throw it
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        tkInFlight.push({
+            obj: tkTarget,
+            group: tkTargetGroup,
+            vel: dir.multiplyScalar(TK_THROW_SPEED),
+            rotVel: new THREE.Euler(
+                (Math.random() - 0.5) * 8,
+                (Math.random() - 0.5) * 8,
+                (Math.random() - 0.5) * 8
+            ),
+            life: 2.5
+        });
+        tkTarget = null;
+        tkTargetGroup = null;
+        tkLifted = false;
+        tkLiftProgress = 0;
+        setTKMode(false);
+        triggerTKFeedback(false);
+        return;
+    }
+
+    if (tkMode) {
+        setTKMode(false);
+        return;
+    }
+
+    setTKMode(true);
+    // Raycast for target
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+    const hits = raycaster.intersectObjects(tkObjects, true);
+    if (hits.length > 0 && hits[0].distance < 8) {
+        // Find top-level group
+        let obj = hits[0].object;
+        let top = obj;
+        while (top.parent && top.parent !== scene) top = top.parent;
+        tkTarget = top;
+        tkTargetGroup = top;
+        tkLiftProgress = 0;
+        tkLifted = false;
+    }
+    triggerTKFeedback(true);
+}
+
+function setTKMode(on) {
+    tkMode = on;
+    const btn = document.getElementById('tk-btn');
+    const reticle = document.getElementById('tk-reticle');
+    const hint = document.getElementById('tk-hint');
+    if (btn) btn.classList.toggle('active', on);
+    if (reticle) reticle.style.display = on ? 'block' : 'none';
+    if (hint) {
+        hint.style.display = on && tkTarget ? 'block' : 'none';
+        hint.textContent = tkLifted ? '[ F / TAP ] THROW' : '[ F / TAP ] GRAB';
     }
 }
 
-document.getElementById('start-btn').addEventListener('click', () => {
-    document.getElementById('menu-screen').style.display = 'none';
-    document.getElementById('ui-layer').style.display = 'block';
-    init();
+function triggerTKFeedback(on) {
+    const vf = document.getElementById('vignette-flash');
+    if (!vf) return;
+    vf.style.background = on ? 'rgba(120,40,200,0.22)' : 'rgba(120,0,0,0)';
+    setTimeout(() => { vf.style.background = 'rgba(120,0,0,0)'; }, 250);
+}
+
+function updateTelekinesis(dt) {
+    // Lift held object
+    if (tkMode && tkTarget && !tkLifted) {
+        tkLiftProgress = Math.min(1, tkLiftProgress + dt * 1.6);
+        const t = tkLiftProgress;
+        const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+        const targetPos = new THREE.Vector3();
+        camera.getWorldPosition(targetPos);
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        targetPos.addScaledVector(dir, TK_HOLD_DIST);
+        targetPos.y = Math.max(targetPos.y, TK_LIFT_HEIGHT);
+
+        tkTarget.position.lerp(targetPos, eased * 0.12 + 0.04);
+        tkTarget.rotation.y += dt * 0.8;
+
+        if (tkLiftProgress >= 1) {
+            tkLifted = true;
+            const hint = document.getElementById('tk-hint');
+            if (hint) { hint.textContent = '[ F / TAP ] THROW'; hint.style.display = 'block'; }
+        }
+    }
+
+    // Hold object in front of camera while lifted
+    if (tkMode && tkTarget && tkLifted) {
+        const targetPos = new THREE.Vector3();
+        camera.getWorldPosition(targetPos);
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        targetPos.addScaledVector(dir, TK_HOLD_DIST);
+        targetPos.y = Math.max(targetPos.y, TK_LIFT_HEIGHT);
+        tkTarget.position.lerp(targetPos, 0.16);
+        tkTarget.rotation.y += dt * 1.2;
+    }
+
+    // Update in-flight thrown objects
+    for (let i = tkInFlight.length - 1; i >= 0; i--) {
+        const f = tkInFlight[i];
+        f.life -= dt;
+        f.vel.y -= 9.8 * dt;  // gravity
+        f.obj.position.addScaledVector(f.vel, dt);
+        f.obj.rotation.x += f.rotVel.x * dt;
+        f.obj.rotation.y += f.rotVel.y * dt;
+        f.obj.rotation.z += f.rotVel.z * dt;
+        // simple floor clamp
+        if (f.obj.position.y < 0.1) {
+            f.obj.position.y = 0.1;
+            f.vel.set(0, 0, 0);
+        }
+        if (f.life <= 0) tkInFlight.splice(i, 1);
+    }
+}
+
+// Desktop telekinesis key
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyF') toggleTelekinesis();
 });
+
+// Mobile telekinesis button
+document.getElementById('tk-btn').addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    toggleTelekinesis();
+}, { passive: false });
 
 </script>
 </body>
