@@ -445,6 +445,27 @@ function generateMaterials() {
             }
         }
         drawDirt(ctx, w, h, 5000);
+        // Manchas de sangre en el suelo
+        for (let i = 0; i < 9; i++) {
+            const bx = Math.random() * w, by = Math.random() * h;
+            const br = 25 + Math.random() * 70;
+            const bgrad = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+            bgrad.addColorStop(0, 'rgba(95, 6, 6, 0.82)');
+            bgrad.addColorStop(0.45, 'rgba(65, 4, 4, 0.5)');
+            bgrad.addColorStop(1, 'rgba(40, 2, 2, 0)');
+            ctx.fillStyle = bgrad;
+            ctx.beginPath();
+            ctx.ellipse(bx, by, br, br * (0.35 + Math.random() * 0.65), Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+            if (Math.random() > 0.45) {
+                const dlen = 40 + Math.random() * 100;
+                const dg = ctx.createLinearGradient(bx, by, bx + (Math.random()-0.5)*14, by + dlen);
+                dg.addColorStop(0, 'rgba(85, 5, 5, 0.55)');
+                dg.addColorStop(1, 'rgba(85, 5, 5, 0)');
+                ctx.fillStyle = dg;
+                ctx.fillRect(bx - 5, by, 10 + Math.random()*8, dlen);
+            }
+        }
         const sheen = ctx.createLinearGradient(0, 0, w, h);
         sheen.addColorStop(0, 'rgba(140,150,160,0.03)');
         sheen.addColorStop(0.5, 'rgba(140,150,160,0.01)');
@@ -593,6 +614,10 @@ function generateMaterials() {
         drawRustStreak(ctx, w * 0.72, 0, h * 0.65, 45);
         ctx.fillStyle = '#332b1f';
         ctx.fillRect(0, h / 2 - 20, w, 40);
+        // Graffiti en la pared derecha
+        drawSprayText(ctx, 'NO SALGAS', Math.round(w * 0.12), Math.round(h * 0.36), 78, { color: 'rgba(10,10,8,0.93)', tilt: -0.05 });
+        drawSprayText(ctx, 'AYUDA', Math.round(w * 0.57), Math.round(h * 0.27), 100, { color: 'rgba(88,4,4,0.85)', tilt: 0.04 });
+        drawSprayText(ctx, 'SALIDA →', Math.round(w * 0.65), Math.round(h * 0.70), 58, { color: 'rgba(12,12,10,0.72)', tilt: 0.02 });
         for (let i = 0; i < 40; i++) {
             ctx.fillStyle = 'rgba(20,17,12,0.5)';
             ctx.fillRect(Math.random() * w, h / 2 - 22 + Math.random() * 44, 15 + Math.random() * 20, 4);
@@ -650,6 +675,29 @@ function generateMaterials() {
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 3;
         ctx.strokeRect(128, 128, 128, 128);
+        // Parches de daño adicionales y manchas de humedad
+        ctx.fillStyle = '#050505';
+        ctx.fillRect(320, 60, 90, 85);
+        ctx.fillRect(28, 288, 66, 105);
+        ctx.fillRect(355, 305, 115, 72);
+        ctx.fillRect(200, 200, 50, 50);
+        // Manchas de humedad / óxido
+        const wg1 = ctx.createRadialGradient(190, 370, 0, 190, 370, 85);
+        wg1.addColorStop(0, 'rgba(52, 43, 18, 0.62)');
+        wg1.addColorStop(0.55, 'rgba(40, 32, 14, 0.32)');
+        wg1.addColorStop(1, 'rgba(30, 24, 10, 0)');
+        ctx.fillStyle = wg1;
+        ctx.fillRect(0, 0, w, h);
+        const wg2 = ctx.createRadialGradient(400, 140, 0, 400, 140, 60);
+        wg2.addColorStop(0, 'rgba(58, 48, 22, 0.55)');
+        wg2.addColorStop(1, 'rgba(38, 30, 10, 0)');
+        ctx.fillStyle = wg2;
+        ctx.fillRect(0, 0, w, h);
+        // Grietas finas
+        ctx.strokeStyle = 'rgba(3,3,3,0.75)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(60, 80); ctx.lineTo(130, 160); ctx.lineTo(110, 220); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(380, 30); ctx.lineTo(430, 120); ctx.lineTo(470, 180); ctx.stroke();
     });
     ceilTex.wrapS = THREE.RepeatWrapping;
     ceilTex.wrapT = THREE.RepeatWrapping;
@@ -673,7 +721,20 @@ function generateMaterials() {
             ctx.lineWidth = 2;
             ctx.strokeRect(50, 90, 412, 130);
 
-            // Placa vacía y desgastada, sin textos visibles.
+            // Número y nombre de habitación en la placa
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(185, 178, 152, 0.90)';
+            ctx.font = `bold 54px "Arial Black", Arial, sans-serif`;
+            ctx.globalAlpha = 0.88;
+            ctx.fillText(room.num, w / 2, 158);
+            ctx.font = `bold 24px Arial, sans-serif`;
+            ctx.letterSpacing = '3px';
+            ctx.globalAlpha = 0.72;
+            ctx.fillText(room.label, w / 2, 194);
+            ctx.globalAlpha = 1;
+            ctx.textAlign = 'left';
+
+            // Placa desgastada con textos.
             for (let i = 0; i < 12; i++) {
                 ctx.fillStyle = 'rgba(80,60,20,0.12)';
                 ctx.beginPath();
@@ -783,18 +844,40 @@ function buildDetailedHallway() {
 
     createHospitalBed(HALL_WIDTH / 2 - 1.35, -6);
     createHospitalBed(HALL_WIDTH / 2 - 1.5, -18);
+    createHospitalBed(HALL_WIDTH / 2 - 1.4, -30);
+    createHospitalBed(HALL_WIDTH / 2 - 1.45, -50);
 
     createIVStand(-HALL_WIDTH / 2 + 0.8, -4);
     createIVStand(-HALL_WIDTH / 2 + 0.5, -12);
+    createIVStand(-HALL_WIDTH / 2 + 0.75, -22);
+    createIVStand(HALL_WIDTH / 2 - 0.65, -33);
+    createIVStand(-HALL_WIDTH / 2 + 0.6, -45);
 
     createWheelchair(1, -25);
     createWheelchair(-1, -35);
+    createWheelchair(0.5, -47);
+    createWheelchair(-1.2, -56);
 
     createDebris();
 
     for (let z = -3; z > -HALL_LENGTH; z -= 10) {
         createCeilingLight(0, z);
     }
+
+    // Pared del fondo del pasillo
+    const endWallGeo = new THREE.PlaneGeometry(HALL_WIDTH, WALL_HEIGHT);
+    const endWall = new THREE.Mesh(endWallGeo, materials.leftWall);
+    endWall.position.set(0, WALL_HEIGHT / 2, -HALL_LENGTH + 0.05);
+    endWall.receiveShadow = true;
+    scene.add(endWall);
+
+    // Pared lateral izquierda al fondo (sin puertas) — tramo final
+    const endLeftGeo = new THREE.PlaneGeometry(8, WALL_HEIGHT);
+    const endLeftWall = new THREE.Mesh(endLeftGeo, materials.leftWall);
+    endLeftWall.rotation.y = Math.PI / 2;
+    endLeftWall.position.set(-HALL_WIDTH / 2, WALL_HEIGHT / 2, -HALL_LENGTH + 4);
+    endLeftWall.receiveShadow = true;
+    scene.add(endLeftWall);
 }
 
 function createDetailedDoor(x, z, roomIdx) {
@@ -1324,7 +1407,7 @@ function createHospitalBed(x, z) {
     trayGroup.add(trayTop, trayLeg);
     trayTop.position.y = 0.35;
     trayLeg.position.y = 0.35;
-    trayGroup.position.set(x + 0.35, 0, z + 0.6);
+    trayGroup.position.set(0.35, 0, 0.6);
     trayGroup.rotation.z = 0.4;
     trayGroup.rotation.x = 0.1;
     group.add(trayGroup);
@@ -1440,7 +1523,7 @@ function createDebris() {
     // Escombros más orgánicos: papeles, fragmentos de panel y pequeñas piezas caídas.
     const debrisGroup = new THREE.Group();
 
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < 44; i++) {
         const roll = Math.random();
         let mesh;
 
@@ -1832,14 +1915,14 @@ function animate() {
     lights.forEach(l => {
         if (l.isBroken) {
             const flicker = Math.random();
-            if (flicker > 0.9) {
-                l.light.intensity = Math.random() * l.baseInt * 0.45;
-                if (l.spot) l.spot.intensity = Math.random() * l.spotBase * 0.45;
-                if (l.mat) l.mat.emissiveIntensity = 0.45;
-            } else if (flicker > 0.965) {
-                l.light.intensity = l.baseInt;
-                if (l.spot) l.spot.intensity = l.spotBase;
-                if (l.mat) l.mat.emissiveIntensity = 1.8;
+            if (flicker > 0.965) {
+                l.light.intensity = l.baseInt * 1.1;
+                if (l.spot) l.spot.intensity = l.spotBase * 1.1;
+                if (l.mat) l.mat.emissiveIntensity = 2.2;
+            } else if (flicker > 0.9) {
+                l.light.intensity = Math.random() * l.baseInt * 0.3;
+                if (l.spot) l.spot.intensity = Math.random() * l.spotBase * 0.3;
+                if (l.mat) l.mat.emissiveIntensity = 0.2;
             }
         }
     });
