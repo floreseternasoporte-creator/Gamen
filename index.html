@@ -1093,27 +1093,36 @@ function createCeilingLight(x, z) {
     housing.receiveShadow = true;
     group.add(housing);
 
-    // Difusor translúcido
-    const diffuserGeo = new THREE.BoxGeometry(1.02, 0.06, 1.72);
+    // Difusor opaco y limpio, sin artefactos transparentes
+    const diffuserGeo = new THREE.BoxGeometry(1.02, 0.04, 1.72);
     const diffuserMat = new THREE.MeshStandardMaterial({
-        color: 0xeaf1f7,
-        emissive: 0xc8ddff,
-        emissiveIntensity: 0.55,
-        transparent: true,
-        opacity: 0.72,
-        roughness: 0.42,
-        metalness: 0.0
+        color: 0xcfd9e4,
+        roughness: 0.25,
+        metalness: 0.06,
+        emissive: 0x081118,
+        emissiveIntensity: 0.16
     });
     const diffuser = new THREE.Mesh(diffuserGeo, diffuserMat);
-    diffuser.position.y = WALL_HEIGHT - 0.11;
+    diffuser.position.y = WALL_HEIGHT - 0.095;
     group.add(diffuser);
+
+    const diffuserFrameGeo = new THREE.BoxGeometry(1.08, 0.02, 1.78);
+    const diffuserFrame = new THREE.Mesh(diffuserFrameGeo, materials.darkMetal);
+    diffuserFrame.position.y = WALL_HEIGHT - 0.075;
+    diffuserFrame.castShadow = true;
+    group.add(diffuserFrame);
+
+    const centerPlateGeo = new THREE.BoxGeometry(0.28, 0.03, 0.54);
+    const centerPlate = new THREE.Mesh(centerPlateGeo, materials.rustyMetal);
+    centerPlate.position.set(0, WALL_HEIGHT - 0.11, 0);
+    group.add(centerPlate);
 
     // Tubos internos
     const tubeGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.92, 12);
     const tubeMat = new THREE.MeshStandardMaterial({
         color: 0xffffff,
         emissive: 0xf0f6ff,
-        emissiveIntensity: 1.8,
+        emissiveIntensity: 0.72,
         roughness: 0.18,
         metalness: 0.02
     });
@@ -1139,31 +1148,17 @@ function createCeilingLight(x, z) {
     }
 
     // Luz real: spot suave hacia abajo + punto de apoyo
-    const spot = new THREE.SpotLight(0xdcecff, 8.5, 13, Math.PI / 4.8, 0.52, 1.5);
+    const spot = new THREE.SpotLight(0xdcecff, 5.6, 10, Math.PI / 4.8, 0.52, 1.5);
     spot.position.set(x, WALL_HEIGHT - 0.16, z);
     spot.target.position.set(x, 0.1, z);
     spot.castShadow = false;
     scene.add(spot);
     scene.add(spot.target);
 
-    const light = new THREE.PointLight(0xdcecff, 6.5, 12);
+    const light = new THREE.PointLight(0xdcecff, 3.8, 8);
     light.position.set(x, WALL_HEIGHT - 0.18, z);
     light.castShadow = false;
     scene.add(light);
-
-    // Halo sutil
-    const haloGeo = new THREE.PlaneGeometry(2.6, 1.25);
-    const haloMat = new THREE.MeshBasicMaterial({
-        color: 0xbfd6ff,
-        transparent: true,
-        opacity: 0.085,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide
-    });
-    const halo = new THREE.Mesh(haloGeo, haloMat);
-    halo.position.set(0, WALL_HEIGHT - 0.1, 0);
-    group.add(halo);
 
     // Panel lateral tenue
     const trimGeo = new THREE.BoxGeometry(1.2, 0.03, 2.08);
@@ -1178,8 +1173,8 @@ function createCeilingLight(x, z) {
         light,
         spot,
         mat: tubeMat,
-        baseInt: 6.5,
-        spotBase: 8.5,
+        baseInt: 3.8,
+        spotBase: 5.6,
         isBroken: Math.random() > 0.45
     });
 }
@@ -1441,122 +1436,115 @@ function createIVStand(x, z) {
 function createWheelchair(x, z) {
     const group = new THREE.Group();
 
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.55), materials.darkMetal);
-    seat.position.set(0, 0.48, 0);
-    seat.rotation.z = -0.05;
+    const frameMat = materials.darkMetal;
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x1f2630, roughness: 0.9 });
+    const cushionMat = new THREE.MeshStandardMaterial({ color: 0x2e2a24, roughness: 0.95 });
+
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.07, 0.5), seatMat);
+    seat.position.set(0.02, 0.46, 0);
+    seat.rotation.z = -0.03;
     seat.castShadow = true;
     group.add(seat);
 
-    const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.06, 0.5), materials.sheet);
-    cushion.position.set(0, 0.54, 0);
-    cushion.rotation.z = -0.03;
+    const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.06, 0.46), cushionMat);
+    cushion.position.set(0.02, 0.50, 0);
+    cushion.rotation.z = -0.02;
     cushion.castShadow = true;
     group.add(cushion);
 
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.72, 0.08), materials.rustyMetal);
-    back.position.set(-0.02, 0.88, -0.24);
-    back.rotation.z = -0.03;
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.62, 0.06), seatMat);
+    back.position.set(0.02, 0.83, -0.24);
+    back.rotation.z = -0.01;
     back.castShadow = true;
     back.receiveShadow = true;
     group.add(back);
 
-    const armGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.62, 8);
-    const armL = new THREE.Mesh(armGeo, materials.darkMetal);
-    armL.rotation.z = Math.PI / 2;
-    armL.position.set(-0.02, 0.76, 0.23);
-    armL.castShadow = true;
-    group.add(armL);
+    const sideBarL = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.62, 8), frameMat);
+    sideBarL.rotation.z = Math.PI / 2;
+    sideBarL.position.set(-0.02, 0.72, 0.22);
+    sideBarL.castShadow = true;
+    group.add(sideBarL);
 
-    const armR = new THREE.Mesh(armGeo, materials.darkMetal);
-    armR.rotation.z = Math.PI / 2;
-    armR.position.set(-0.02, 0.76, -0.23);
-    armR.castShadow = true;
-    group.add(armR);
+    const sideBarR = sideBarL.clone();
+    sideBarR.position.z = -0.22;
+    group.add(sideBarR);
 
-    const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.08, 18);
-    const wheel1 = new THREE.Mesh(wheelGeo, materials.darkMetal);
+    const wheelGeo = new THREE.CylinderGeometry(0.30, 0.30, 0.08, 18);
+    const wheel1 = new THREE.Mesh(wheelGeo, materials.rustyMetal);
     wheel1.rotation.z = Math.PI / 2;
-    wheel1.position.set(0.26, 0.3, 0.28);
+    wheel1.position.set(0.26, 0.30, 0.28);
     wheel1.castShadow = true;
     group.add(wheel1);
 
-    const wheel2 = new THREE.Mesh(wheelGeo, materials.darkMetal);
-    wheel2.rotation.z = Math.PI / 2;
-    wheel2.position.set(0.26, 0.3, -0.28);
-    wheel2.castShadow = true;
+    const wheel2 = wheel1.clone();
+    wheel2.position.z = -0.28;
     group.add(wheel2);
 
-    const smallWheelGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.04, 12);
-    const wheel3 = new THREE.Mesh(smallWheelGeo, materials.rustyMetal);
+    const smallWheelGeo = new THREE.CylinderGeometry(0.10, 0.10, 0.05, 12);
+    const wheel3 = new THREE.Mesh(smallWheelGeo, materials.darkMetal);
     wheel3.rotation.z = Math.PI / 2;
-    wheel3.position.set(-0.26, 0.12, 0.22);
+    wheel3.position.set(-0.25, 0.12, 0.22);
     wheel3.castShadow = true;
     group.add(wheel3);
 
-    const wheel4 = new THREE.Mesh(smallWheelGeo, materials.rustyMetal);
-    wheel4.rotation.z = Math.PI / 2;
-    wheel4.position.set(-0.26, 0.12, -0.22);
-    wheel4.castShadow = true;
+    const wheel4 = wheel3.clone();
+    wheel4.position.z = -0.22;
     group.add(wheel4);
 
-    const handle1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.48, 0.04), materials.darkMetal);
-    handle1.position.set(-0.18, 1.05, 0.18);
-    handle1.rotation.z = 0.18;
-    group.add(handle1);
+    const frameBar = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.04, 0.04), frameMat);
+    frameBar.position.set(0.18, 0.20, 0);
+    frameBar.rotation.z = 0.06;
+    frameBar.castShadow = true;
+    group.add(frameBar);
 
-    const handle2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.48, 0.04), materials.darkMetal);
-    handle2.position.set(-0.18, 1.05, -0.18);
-    handle2.rotation.z = 0.18;
-    group.add(handle2);
+    const footRest = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.16), materials.rustyMetal);
+    footRest.position.set(-0.18, 0.14, 0);
+    footRest.rotation.z = 0.05;
+    footRest.castShadow = true;
+    group.add(footRest);
 
-    const footGeo = new THREE.BoxGeometry(0.5, 0.04, 0.14);
-    const foot = new THREE.Mesh(footGeo, materials.rustyMetal);
-    foot.position.set(0.18, 0.2, 0);
-    foot.rotation.z = 0.05;
-    foot.castShadow = true;
-    group.add(foot);
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.45, 0.03), frameMat);
+    handle.position.set(-0.18, 1.02, 0);
+    handle.rotation.z = 0.12;
+    handle.castShadow = true;
+    group.add(handle);
 
     group.rotation.y = Math.random() * Math.PI * 2;
+    group.rotation.z = (Math.random() - 0.5) * 0.08;
     group.position.set(x, 0, z);
     scene.add(group);
 }
 
 function createDebris() {
-    // Escombros más orgánicos: papeles, fragmentos de panel y pequeñas piezas caídas.
+    // Escombros más orgánicos y menos artificiales: papeles, fragmentos y piezas sueltas.
     const debrisGroup = new THREE.Group();
+    const paperMat = new THREE.MeshStandardMaterial({ color: 0xd8d2be, roughness: 1.0, side: THREE.DoubleSide });
+    const scrapMat = new THREE.MeshStandardMaterial({ color: 0x655b4b, roughness: 1.0 });
 
-    for (let i = 0; i < 44; i++) {
+    for (let i = 0; i < 28; i++) {
         const roll = Math.random();
         let mesh;
 
-        if (roll < 0.45) {
+        if (roll < 0.4) {
             const geo = new THREE.PlaneGeometry(0.16 + Math.random() * 0.2, 0.12 + Math.random() * 0.16, 1, 1);
-            const mat = new THREE.MeshStandardMaterial({
-                color: 0xd6d2c2,
-                roughness: 1.0,
-                side: THREE.DoubleSide
-            });
-            mesh = new THREE.Mesh(geo, mat);
+            mesh = new THREE.Mesh(geo, paperMat);
             mesh.rotation.x = -Math.PI / 2;
             mesh.rotation.z = Math.random() * Math.PI;
-            mesh.position.y = 0.011;
-        } else if (roll < 0.75) {
-            const geo = new THREE.BoxGeometry(0.04 + Math.random() * 0.08, 0.015 + Math.random() * 0.03, 0.04 + Math.random() * 0.08);
-            const mat = new THREE.MeshStandardMaterial({ color: 0x665c4a, roughness: 1.0 });
-            mesh = new THREE.Mesh(geo, mat);
+            mesh.position.y = 0.012 + Math.random() * 0.004;
+        } else if (roll < 0.72) {
+            const geo = new THREE.BoxGeometry(0.05 + Math.random() * 0.08, 0.01 + Math.random() * 0.02, 0.05 + Math.random() * 0.08);
+            mesh = new THREE.Mesh(geo, scrapMat);
             mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-            mesh.position.y = 0.02;
+            mesh.position.y = 0.018 + Math.random() * 0.008;
         } else {
-            const geo = new THREE.CylinderGeometry(0.015, 0.02, 0.12 + Math.random() * 0.08, 8);
-            const mat = new THREE.MeshStandardMaterial({ color: 0x5a4a38, roughness: 1.0 });
-            mesh = new THREE.Mesh(geo, mat);
+            const geo = new THREE.CylinderGeometry(0.012, 0.018, 0.09 + Math.random() * 0.06, 8);
+            mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x5a4a38, roughness: 1.0 }));
             mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-            mesh.position.y = 0.06;
+            mesh.position.y = 0.04 + Math.random() * 0.01;
         }
 
-        mesh.position.x = (Math.random() - 0.5) * (HALL_WIDTH - 1.2);
+        mesh.position.x = (Math.random() - 0.5) * (HALL_WIDTH - 1.3);
         mesh.position.z = -4 - Math.random() * (HALL_LENGTH - 8);
-        mesh.position.y += 0.002;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         debrisGroup.add(mesh);
@@ -2159,24 +2147,42 @@ function buildWaitingArea(LZS, LZE, LW) {
 
 function createWaitingChair(x, y, z) {
     const g = new THREE.Group();
-    const seatMat = new THREE.MeshStandardMaterial({ color: 0x1a3848, roughness: 0.88 });
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x1f3645, roughness: 0.82 });
     const fMat = materials.rustyMetal;
-    // Seat
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.065, 0.5), seatMat);
-    seat.position.y = 0.44; seat.castShadow = true; g.add(seat);
-    // Backrest
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.48, 0.065), seatMat);
-    back.position.set(0, 0.7, -0.22); back.rotation.x = 0.07;
-    back.castShadow = true; g.add(back);
-    // Legs
-    [[-0.21, -0.2], [0.21, -0.2], [-0.21, 0.2], [0.21, 0.2]].forEach(([lx, lz]) => {
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.02, 0.44, 8), fMat);
-        leg.position.set(lx, 0.22, lz); leg.castShadow = true; g.add(leg);
+
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.07, 0.5), seatMat);
+    seat.position.y = 0.44;
+    seat.castShadow = true;
+    g.add(seat);
+
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.5, 0.07), seatMat);
+    back.position.set(0, 0.72, -0.22);
+    back.rotation.x = 0.06;
+    back.castShadow = true;
+    g.add(back);
+
+    const legPositions = [[-0.21, -0.2], [0.21, -0.2], [-0.21, 0.2], [0.21, 0.2]];
+    legPositions.forEach(([lx, lz]) => {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.02, 0.43, 8), fMat);
+        leg.position.set(lx, 0.215, lz);
+        leg.castShadow = true;
+        g.add(leg);
     });
-    // Foot rail
+
     const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.42, 8), fMat);
-    rail.rotation.z = Math.PI / 2; rail.position.set(0, 0.1, 0.2); g.add(rail);
-    const rail2 = rail.clone(); rail2.position.set(0, 0.1, -0.2); g.add(rail2);
+    rail.rotation.z = Math.PI / 2;
+    rail.position.set(0, 0.11, 0.2);
+    g.add(rail);
+
+    const rail2 = rail.clone();
+    rail2.position.set(0, 0.11, -0.2);
+    g.add(rail2);
+
+    const brace = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.03, 0.03), materials.darkMetal);
+    brace.position.set(0, 0.18, 0);
+    brace.castShadow = true;
+    g.add(brace);
+
     g.position.set(x, y, z);
     g.rotation.y = (Math.random() - 0.5) * 0.25;
     return g;
