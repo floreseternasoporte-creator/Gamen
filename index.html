@@ -237,6 +237,7 @@ let cameraSway = 0;
 let lights = [];
 let flashlight;
 let doors = [];
+let machineDisplays = [];
 let nearestDoor = null;
 let materials = {};
 
@@ -2123,45 +2124,78 @@ function createWaitingChair(x, y, z) {
 
 function buildVendingMachine(x, z) {
     const g = new THREE.Group();
+
     const bodyTex = createTexture(256, 512, (ctx, w, h) => {
-        ctx.fillStyle = '#181820'; ctx.fillRect(0, 0, w, h);
-        // Display window (dark glass)
-        ctx.fillStyle = 'rgba(4,4,8,0.96)'; ctx.fillRect(w * 0.07, h * 0.08, w * 0.86, h * 0.56);
-        ctx.strokeStyle = 'rgba(70,70,100,0.65)'; ctx.lineWidth = 3;
-        ctx.strokeRect(w * 0.07, h * 0.08, w * 0.86, h * 0.56);
-        // Rows of products (dimly visible)
-        for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) {
-            ctx.fillStyle = `rgba(${12 + Math.random() * 10},${4 + Math.random() * 6},${4 + Math.random() * 6},0.75)`;
-            ctx.fillRect(w * 0.1 + c * w * 0.28, h * 0.11 + r * h * 0.12, w * 0.25, h * 0.09);
+        ctx.fillStyle = '#15141b'; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#0b1015'; ctx.fillRect(w * 0.06, h * 0.08, w * 0.88, h * 0.56);
+        ctx.strokeStyle = 'rgba(110,120,140,0.55)'; ctx.lineWidth = 3; ctx.strokeRect(w * 0.06, h * 0.08, w * 0.88, h * 0.56);
+        ctx.fillStyle = 'rgba(40,60,70,0.95)'; ctx.fillRect(w * 0.08, h * 0.1, w * 0.84, h * 0.52);
+        ctx.fillStyle = 'rgba(180,20,20,0.85)'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('MODO DE EMERGENCIA', w / 2, h * 0.25);
+        ctx.fillStyle = 'rgba(200,180,110,0.95)'; ctx.font = 'bold 13px Arial';
+        ctx.fillText('SELECCIÓN AUTOMÁTICA', w / 2, h * 0.78);
+        for (let i = 0; i < 6; i++) {
+            ctx.fillStyle = i % 2 === 0 ? 'rgba(120,80,20,0.8)' : 'rgba(70,60,40,0.7)';
+            ctx.fillRect(w * 0.16 + (i % 3) * w * 0.22, h * 0.66 + Math.floor(i / 3) * h * 0.09, w * 0.12, h * 0.04);
         }
-        // Lower coin + selection panel
-        ctx.fillStyle = '#101018'; ctx.fillRect(w * 0.07, h * 0.69, w * 0.86, h * 0.28);
-        ctx.strokeStyle = 'rgba(55,55,75,0.55)'; ctx.lineWidth = 2;
-        ctx.strokeRect(w * 0.07, h * 0.69, w * 0.86, h * 0.28);
-        ctx.fillStyle = 'rgba(55,50,35,0.85)'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
-        ctx.fillText('SELECCIÓN AUTOMÁTICA', w / 2, h * 0.77);
-        // Keypad dots
-        for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
-            ctx.fillStyle = 'rgba(40,40,55,0.8)';
-            ctx.beginPath(); ctx.arc(w * 0.2 + c * w * 0.25, h * 0.83 + r * h * 0.04, 5, 0, Math.PI * 2); ctx.fill();
-        }
-        drawDirt(ctx, w, h, 350);
-        drawRustStreak(ctx, w * 0.5, 0, h * 0.4, 14);
+        drawDirt(ctx, w, h, 420);
+        drawRustStreak(ctx, w * 0.5, 0, h * 0.42, 16);
     });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.82, 1.95, 0.56),
-        new THREE.MeshStandardMaterial({ map: bodyTex, roughness: 0.65, metalness: 0.4 }));
-    body.position.y = 0.975; body.castShadow = true; body.receiveShadow = true; g.add(body);
-    // Side trim strips
-    for (const sx of [-0.42, 0.42]) {
-        const t = new THREE.Mesh(new THREE.BoxGeometry(0.025, 1.95, 0.56), materials.darkMetal);
-        t.position.set(sx, 0.975, 0); g.add(t);
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.86, 2.0, 0.6),
+        new THREE.MeshStandardMaterial({ map: bodyTex, roughness: 0.62, metalness: 0.4 }));
+    body.position.y = 1.0; body.castShadow = true; body.receiveShadow = true; g.add(body);
+
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.18, 0.62), materials.darkMetal);
+    frame.position.set(0, 1.9, 0); frame.castShadow = true; g.add(frame);
+
+    const frontPanel = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.56, 0.04), materials.rustyMetal);
+    frontPanel.position.set(0, 1.06, -0.3); frontPanel.castShadow = true; g.add(frontPanel);
+
+    const displayCanvas = document.createElement('canvas');
+    displayCanvas.width = 256; displayCanvas.height = 256;
+    const displayCtx = displayCanvas.getContext('2d');
+    const displayTex = new THREE.CanvasTexture(displayCanvas);
+    displayTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const displayMat = new THREE.MeshStandardMaterial({ map: displayTex, roughness: 0.35, metalness: 0.15, emissive: 0x132533, emissiveIntensity: 0.45 });
+    const display = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.38), displayMat);
+    display.position.set(0, 1.14, -0.312); display.rotation.y = 0; g.add(display);
+
+    const screenGlow = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.42, 0.02), new THREE.MeshStandardMaterial({ color: 0x101820, roughness: 0.1, emissive: 0x162433, emissiveIntensity: 0.2 }));
+    screenGlow.position.set(0, 1.14, -0.325); screenGlow.castShadow = true; g.add(screenGlow);
+
+    const keypad = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.04), materials.darkMetal);
+    keypad.position.set(0, 0.9, -0.3); keypad.castShadow = true; g.add(keypad);
+
+    const buttonRows = [];
+    for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+            const btn = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 0.025), new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.75, metalness: 0.25 }));
+            btn.position.set(-0.12 + c * 0.12, 0.9 + r * 0.03, -0.322); btn.castShadow = true; g.add(btn);
+            buttonRows.push(btn);
+        }
     }
-    // Top vent
-    const vent = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.07, 0.04), materials.darkMetal);
-    vent.position.set(0, 1.91, -0.28); vent.rotation.x = 0.35; g.add(vent);
-    // Product collection slot
-    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.08), materials.darkMetal);
-    slot.position.set(0, 0.08, -0.28); g.add(slot);
+
+    const redLight = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.02), new THREE.MeshStandardMaterial({ color: 0x330000, roughness: 0.2, emissive: 0x330000, emissiveIntensity: 0.2 }));
+    redLight.position.set(0.18, 1.22, -0.325); g.add(redLight);
+
+    const coinSlot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.04), materials.darkMetal);
+    coinSlot.position.set(0.0, 0.78, -0.32); coinSlot.castShadow = true; g.add(coinSlot);
+
+    const latch = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.02, 0.03), materials.rustyMetal);
+    latch.position.set(0.0, 0.68, -0.32); g.add(latch);
+
+    const sideTrimL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 2.0, 0.6), materials.darkMetal);
+    sideTrimL.position.set(-0.44, 1.0, 0); g.add(sideTrimL);
+    const sideTrimR = sideTrimL.clone(); sideTrimR.position.x = 0.44; g.add(sideTrimR);
+
+    const vent = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.06, 0.04), materials.darkMetal);
+    vent.position.set(0, 1.95, -0.3); vent.rotation.x = 0.35; g.add(vent);
+
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.06, 0.08), materials.darkMetal);
+    slot.position.set(0, 0.12, -0.32); g.add(slot);
+
+    machineDisplays.push({ displayCtx, displayTex, displayMat, displayCanvas, redLight, buttonRows, display });
 
     g.position.set(x, 0, z); g.rotation.y = Math.PI / 2; scene.add(g);
 }
@@ -2578,6 +2612,39 @@ function animate() {
         }
         scene.particles.geometry.attributes.position.needsUpdate = true;
     }
+
+    machineDisplays.forEach((item, idx) => {
+        const ctx = item.displayCtx;
+        const w = item.displayCanvas.width;
+        const h = item.displayCanvas.height;
+        ctx.clearRect(0, 0, w, h);
+        const pulse = 0.45 + 0.3 * Math.sin(clock.elapsedTime * 2.2 + idx);
+        const base = idx % 2 === 0 ? '#071018' : '#120b0a';
+        ctx.fillStyle = base;
+        ctx.fillRect(0, 0, w, h);
+        for (let y = 0; y < h; y += 20) {
+            ctx.fillStyle = `rgba(255,255,255,${0.03 + pulse * 0.04})`;
+            ctx.fillRect(0, y, w, 2);
+        }
+        ctx.fillStyle = idx % 2 === 0 ? 'rgba(220, 80, 40, 0.95)' : 'rgba(220, 180, 70, 0.95)';
+        ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(idx % 2 === 0 ? 'SELECCIÓN' : 'EMERGENCIA', w / 2, h * 0.34);
+        ctx.font = 'bold 28px Arial';
+        ctx.fillText(idx % 2 === 0 ? 'AUTOMÁTICA' : 'ACTIVA', w / 2, h * 0.58);
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.fillRect(w * 0.1, h * 0.72, w * 0.8, 2);
+        ctx.fillStyle = `rgba(255,255,255,${0.25 + pulse * 0.55})`;
+        ctx.fillRect(w * 0.15, h * 0.74, w * 0.7 * (0.45 + Math.sin(clock.elapsedTime * 3 + idx) * 0.2), 3);
+        item.displayTex.needsUpdate = true;
+        item.displayMat.emissiveIntensity = 0.35 + pulse * 0.4;
+        if (item.redLight.material) {
+            item.redLight.material.emissiveIntensity = 0.2 + pulse * 0.7;
+        }
+        item.buttonRows.forEach((btn, bi) => {
+            const glow = 0.25 + (Math.sin(clock.elapsedTime * 2.2 + bi * 0.4) + 1) * 0.2;
+            btn.material.color.setRGB(0.16 + glow * 0.04, 0.16 + glow * 0.04, 0.16 + glow * 0.04);
+        });
+    });
 
     updateScreenParticles();
     updateDoorInteraction();
