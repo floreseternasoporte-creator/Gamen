@@ -277,7 +277,8 @@ function init() {
     scene.fog = new THREE.FogExp2(0x030303, 0.045);
 
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 1.6, 2);
+    camera.position.set(0, 1.6, 12);
+    yaw = Math.PI;
 
     clock = new THREE.Clock();
 
@@ -299,6 +300,7 @@ function init() {
     generateMaterials();
     setupScreenParticles();
     buildDetailedHallway();
+    buildLobby();
 
     window.addEventListener('resize', onWindowResize, false);
     if (isMobile) setupMobileControls();
@@ -1669,12 +1671,704 @@ function updateScreenParticles() {
     screenParticleCtx.globalCompositeOperation = 'source-over';
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// LOBBY / WAITING ROOM / RECEPTION AREA
+// ═══════════════════════════════════════════════════════════════════════════
+
+function buildLobby() {
+    const LW = 20, LD = 22, LH = 4.5;
+    const LZS = 2, LZE = 24, LCZ = 13;
+
+    // ── Floor texture: cracked institutional tiles ─────────────────────────
+    const lobbyFloorTex = createTexture(2048, 2048, (ctx, w, h) => {
+        ctx.fillStyle = '#949088'; ctx.fillRect(0, 0, w, h);
+        const ts = 180;
+        for (let gx = 0; gx < w; gx += ts) {
+            for (let gy = 0; gy < h; gy += ts) {
+                const shade = 128 + Math.floor(Math.random() * 30);
+                ctx.fillStyle = `rgb(${shade},${shade - 1},${shade - 3})`;
+                ctx.fillRect(gx + 3, gy + 3, ts - 6, ts - 6);
+                for (let s = 0; s < 3; s++) {
+                    ctx.fillStyle = `rgba(70,65,60,${0.04 + Math.random() * 0.09})`;
+                    ctx.beginPath();
+                    ctx.arc(gx + Math.random() * ts, gy + Math.random() * ts, 8 + Math.random() * 28, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        ctx.strokeStyle = 'rgba(22,22,18,0.88)'; ctx.lineWidth = 5;
+        for (let i = 0; i <= w; i += ts) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke(); }
+        for (let i = 0; i <= h; i += ts) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke(); }
+        for (let i = 0; i < 8; i++) {
+            const bx = Math.random() * w, by = Math.random() * h;
+            const bg = ctx.createRadialGradient(bx, by, 0, bx, by, 35 + Math.random() * 65);
+            bg.addColorStop(0, 'rgba(88,4,4,0.75)'); bg.addColorStop(1, 'rgba(55,2,2,0)');
+            ctx.fillStyle = bg; ctx.beginPath();
+            ctx.ellipse(bx, by, 50 + Math.random() * 55, 30 + Math.random() * 40, Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        for (let i = 0; i < 22; i++) {
+            ctx.strokeStyle = 'rgba(8,8,6,0.42)'; ctx.lineWidth = 1.2;
+            let cx = Math.random() * w, cy = Math.random() * h;
+            ctx.beginPath(); ctx.moveTo(cx, cy);
+            for (let j = 0; j < 5; j++) { cx += (Math.random() - 0.5) * 75; cy += (Math.random() - 0.5) * 75; ctx.lineTo(cx, cy); }
+            ctx.stroke();
+        }
+        drawDirt(ctx, w, h, 4000);
+    });
+    lobbyFloorTex.wrapS = lobbyFloorTex.wrapT = THREE.RepeatWrapping;
+    lobbyFloorTex.repeat.set(LW / 5, LD / 5);
+    const lobbyFloorMat = new THREE.MeshStandardMaterial({ map: lobbyFloorTex, roughness: 0.88, metalness: 0.03 });
+
+    // ── Wall texture: peeling institutional paint + dado rail ──────────────
+    const lobbyWallTex = createTexture(1024, 1024, (ctx, w, h) => {
+        ctx.fillStyle = '#696b5e'; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#2e3028'; ctx.fillRect(0, h * 0.62, w, h * 0.38);
+        ctx.strokeStyle = 'rgba(12,12,8,0.85)'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(0, h * 0.62); ctx.lineTo(w, h * 0.62); ctx.stroke();
+        drawPeelingPaint(ctx, w, h); drawDirt(ctx, w, h, 2500);
+        drawRustStreak(ctx, w * 0.22, 0, h * 0.55, 22);
+        drawRustStreak(ctx, w * 0.68, 0, h * 0.45, 18);
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, 'rgba(0,0,0,0.65)'); grad.addColorStop(0.12, 'transparent');
+        grad.addColorStop(0.88, 'transparent'); grad.addColorStop(1, 'rgba(0,0,0,0.88)');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+    });
+    const lobbyWallMat = new THREE.MeshStandardMaterial({ map: lobbyWallTex, roughness: 0.94 });
+
+    // ── Ceiling texture: drop tiles with missing panels ────────────────────
+    const ceilTexL = createTexture(512, 512, (ctx, w, h) => {
+        ctx.fillStyle = '#5e5c56'; ctx.fillRect(0, 0, w, h);
+        drawDirt(ctx, w, h, 500);
+        ctx.strokeStyle = 'rgba(10,10,8,0.92)'; ctx.lineWidth = 5;
+        for (let i = 0; i <= w; i += 128) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke(); }
+        for (let i = 0; i <= h; i += 128) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke(); }
+        [[0, 0], [2, 1], [1, 3], [3, 2], [0, 2]].forEach(([gx, gy]) => {
+            ctx.fillStyle = '#040404'; ctx.fillRect(gx * 128 + 2, gy * 128 + 2, 124, 124);
+        });
+        for (let i = 0; i < 8; i++) {
+            const wg = ctx.createRadialGradient(Math.random() * w, Math.random() * h, 0, Math.random() * w, Math.random() * h, 55 + Math.random() * 80);
+            wg.addColorStop(0, 'rgba(55,44,18,0.55)'); wg.addColorStop(1, 'rgba(30,22,8,0)');
+            ctx.fillStyle = wg; ctx.fillRect(0, 0, w, h);
+        }
+    });
+    ceilTexL.wrapS = ceilTexL.wrapT = THREE.RepeatWrapping;
+    ceilTexL.repeat.set(LW / 4, LD / 4);
+    const ceilMatL = new THREE.MeshStandardMaterial({ map: ceilTexL, roughness: 1.0 });
+
+    // ── Desk texture: dark aged wood ───────────────────────────────────────
+    const deskTex = createTexture(512, 512, (ctx, w, h) => {
+        ctx.fillStyle = '#1e1408'; ctx.fillRect(0, 0, w, h);
+        for (let i = 0; i < 90; i++) {
+            ctx.strokeStyle = `rgba(${32 + Math.random() * 15},${22 + Math.random() * 10},${8 + Math.random() * 8},0.25)`;
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(0, Math.random() * h);
+            ctx.bezierCurveTo(w * 0.3, Math.random() * h, w * 0.7, Math.random() * h, w, Math.random() * h);
+            ctx.stroke();
+        }
+        drawDirt(ctx, w, h, 400);
+        const tg = ctx.createLinearGradient(0, 0, 0, h);
+        tg.addColorStop(0, 'rgba(55,38,20,0.4)'); tg.addColorStop(1, 'rgba(8,5,2,0.6)');
+        ctx.fillStyle = tg; ctx.fillRect(0, 0, w, h);
+    });
+    const deskMat = new THREE.MeshStandardMaterial({ map: deskTex, roughness: 0.7, metalness: 0.08 });
+    const deskTopMat = new THREE.MeshStandardMaterial({ color: 0x16100a, roughness: 0.55, metalness: 0.15 });
+
+    // ── Floor ──────────────────────────────────────────────────────────────
+    const lobFloor = new THREE.Mesh(new THREE.PlaneGeometry(LW, LD), lobbyFloorMat);
+    lobFloor.rotation.x = -Math.PI / 2; lobFloor.position.set(0, 0, LCZ);
+    lobFloor.receiveShadow = true; scene.add(lobFloor);
+
+    // ── Ceiling ────────────────────────────────────────────────────────────
+    const lobCeil = new THREE.Mesh(new THREE.PlaneGeometry(LW, LD), ceilMatL);
+    lobCeil.rotation.x = Math.PI / 2; lobCeil.position.set(0, LH, LCZ);
+    lobCeil.receiveShadow = true; scene.add(lobCeil);
+
+    // ── West wall (x = -10): waiting room side ─────────────────────────────
+    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(LD, LH), lobbyWallMat);
+    westWall.rotation.y = Math.PI / 2; westWall.position.set(-LW / 2, LH / 2, LCZ);
+    westWall.receiveShadow = true; scene.add(westWall);
+
+    // ── East wall (x = +10): admissions corridor side ──────────────────────
+    const CORR_W = 4.5, CORR_H = 3.0, CORR_Z = LZS + LD * 0.68;
+    // South solid
+    const eastSeg = LD - CORR_W - (LZE - CORR_Z - CORR_W);
+    const eastA = new THREE.Mesh(new THREE.PlaneGeometry(eastSeg, LH), lobbyWallMat);
+    eastA.rotation.y = -Math.PI / 2; eastA.position.set(LW / 2, LH / 2, LZS + eastSeg / 2);
+    eastA.receiveShadow = true; scene.add(eastA);
+    // North solid
+    const northSegLen = LZE - (CORR_Z + CORR_W);
+    if (northSegLen > 0) {
+        const eastC = new THREE.Mesh(new THREE.PlaneGeometry(northSegLen, LH), lobbyWallMat);
+        eastC.rotation.y = -Math.PI / 2; eastC.position.set(LW / 2, LH / 2, LZE - northSegLen / 2);
+        eastC.receiveShadow = true; scene.add(eastC);
+    }
+    // Above corridor opening
+    const eastTop = new THREE.Mesh(new THREE.PlaneGeometry(CORR_W, LH - CORR_H), lobbyWallMat);
+    eastTop.rotation.y = -Math.PI / 2; eastTop.position.set(LW / 2, CORR_H + (LH - CORR_H) / 2, CORR_Z + CORR_W / 2);
+    eastTop.receiveShadow = true; scene.add(eastTop);
+    // Corridor frame
+    const corrFrameMat = new THREE.MeshStandardMaterial({ color: 0x282820, roughness: 0.9 });
+    const corrFrameT = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, CORR_W), corrFrameMat);
+    corrFrameT.position.set(LW / 2 - 0.075, CORR_H, CORR_Z + CORR_W / 2); scene.add(corrFrameT);
+    for (const sz of [CORR_Z, CORR_Z + CORR_W]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, CORR_H, 0.12), corrFrameMat);
+        post.position.set(LW / 2 - 0.06, CORR_H / 2, sz); scene.add(post);
+    }
+    // Dark corridor visible through opening
+    const corrDepthMat = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 1.0 });
+    const corrDepth = new THREE.Mesh(new THREE.PlaneGeometry(CORR_H, CORR_W), corrDepthMat);
+    corrDepth.rotation.y = -Math.PI / 2; corrDepth.position.set(LW / 2 + 1.5, CORR_H / 2, CORR_Z + CORR_W / 2);
+    scene.add(corrDepth);
+    // Red light deep in admissions corridor
+    const corrRedLight = new THREE.PointLight(0xdd0000, 3.5, 8);
+    corrRedLight.position.set(LW / 2 + 3, 1.8, CORR_Z + CORR_W / 2);
+    scene.add(corrRedLight);
+    lights.push({ light: corrRedLight, mat: null, baseInt: 3.5, isBroken: true });
+
+    // ── South wall (z=2): connects to hallway ──────────────────────────────
+    const hallOW = HALL_WIDTH, sideSegW = (LW - hallOW) / 2;
+    const southL = new THREE.Mesh(new THREE.BoxGeometry(sideSegW, LH, 0.22), lobbyWallMat);
+    southL.position.set(-(hallOW / 2 + sideSegW / 2), LH / 2, LZS + 0.11);
+    southL.castShadow = true; southL.receiveShadow = true; scene.add(southL);
+    const southR = new THREE.Mesh(new THREE.BoxGeometry(sideSegW, LH, 0.22), lobbyWallMat);
+    southR.position.set(hallOW / 2 + sideSegW / 2, LH / 2, LZS + 0.11);
+    southR.castShadow = true; southR.receiveShadow = true; scene.add(southR);
+    if (LH > WALL_HEIGHT) {
+        const topH = LH - WALL_HEIGHT;
+        const southMid = new THREE.Mesh(new THREE.BoxGeometry(hallOW, topH, 0.22), lobbyWallMat);
+        southMid.position.set(0, WALL_HEIGHT + topH / 2, LZS + 0.11);
+        southMid.castShadow = true; southMid.receiveShadow = true; scene.add(southMid);
+    }
+    // Archway header sign: PABELLÓN ABANDONADO
+    const hallSignTex = createTexture(512, 96, (ctx, w, h) => {
+        ctx.fillStyle = 'rgba(8,8,6,0.92)'; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = 'rgba(175,155,90,0.9)'; ctx.font = 'bold 38px "Arial Black",Arial,sans-serif';
+        ctx.textAlign = 'center'; ctx.fillText('PABELLÓN ABANDONADO', w / 2, 62);
+        ctx.strokeStyle = 'rgba(110,90,45,0.55)'; ctx.lineWidth = 3; ctx.strokeRect(4, 4, w - 8, h - 8);
+    });
+    const hallSign = new THREE.Mesh(new THREE.PlaneGeometry(hallOW - 0.1, 0.5),
+        new THREE.MeshStandardMaterial({ map: hallSignTex, roughness: 0.8, emissive: 0x201800, emissiveIntensity: 0.25 }));
+    hallSign.position.set(0, WALL_HEIGHT + 0.32, LZS + 0.28); scene.add(hallSign);
+
+    // ── Main entrance: large broken glass doors (north wall, z=24) ─────────
+    buildMainEntrance(LW, LH, LZE, lobbyWallMat);
+
+    // ── Reception desk ─────────────────────────────────────────────────────
+    buildReceptionDesk(deskMat, deskTopMat, LZS, LZE);
+
+    // ── Waiting area (left side) ───────────────────────────────────────────
+    buildWaitingArea(LZS, LZE, LW);
+
+    // ── Vending machines (west wall, left side) ────────────────────────────
+    buildVendingMachine(-LW / 2 + 0.55, LZS + 5);
+    buildVendingMachine(-LW / 2 + 0.55, LZS + 8.5);
+
+    // ── Directional signs ─────────────────────────────────────────────────
+    buildLobbySigns(LW, LH, LCZ, LZE, CORR_Z, CORR_W);
+
+    // ── Ceiling lights ─────────────────────────────────────────────────────
+    [[-4, LZS + 4], [4, LZS + 4], [-4, LZS + 11], [4, LZS + 11],
+        [0, LZS + 7], [-4, LZS + 17], [4, LZS + 17], [0, LZS + 20]].forEach(([lx, lz]) => {
+            createCeilingLight(lx, lz);
+        });
+
+    // ── Moonlight through main entrance ────────────────────────────────────
+    const moon = new THREE.SpotLight(0x4466bb, 18, 50, Math.PI / 5.5, 0.6, 1.2);
+    moon.position.set(0, LH + 10, LZE + 6);
+    moon.target.position.set(1, 0, LZE - 4);
+    moon.castShadow = false;
+    scene.add(moon); scene.add(moon.target);
+    lights.push({ light: moon, mat: null, baseInt: 18, isBroken: false });
+
+    // Blue ambient fill (moonlight spill)
+    const lobbyAmb = new THREE.PointLight(0x1a2240, 4, 40);
+    lobbyAmb.position.set(0, 3, LCZ);
+    scene.add(lobbyAmb);
+    lights.push({ light: lobbyAmb, mat: null, baseInt: 4, isBroken: false });
+
+    // ── Floor debris scattered throughout lobby ─────────────────────────────
+    buildLobbyDebris(LW, LD, LZS);
+}
+
+function buildMainEntrance(LW, LH, LZE, lobbyWallMat) {
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x2e3340, roughness: 0.55, metalness: 0.8 });
+    const glassShardMat = new THREE.MeshStandardMaterial({
+        color: 0x5577bb, transparent: true, opacity: 0.16,
+        roughness: 0.05, metalness: 0.5, side: THREE.DoubleSide
+    });
+    const glassMat = new THREE.MeshStandardMaterial({
+        color: 0x7799cc, transparent: true, opacity: 0.28,
+        roughness: 0.08, metalness: 0.6, side: THREE.DoubleSide
+    });
+
+    const sideW = LW * 0.16;
+    const entrW = LW - sideW * 2;
+
+    // Solid flanking walls
+    [-entrW / 2 - sideW / 2, entrW / 2 + sideW / 2].forEach(xp => {
+        const w = new THREE.Mesh(new THREE.BoxGeometry(sideW, LH, 0.28), lobbyWallMat);
+        w.position.set(xp, LH / 2, LZE - 0.14);
+        w.castShadow = true; w.receiveShadow = true; scene.add(w);
+    });
+
+    // Top header beam
+    const doorH = LH * 0.82;
+    const topBeam = new THREE.Mesh(new THREE.BoxGeometry(entrW + 0.1, LH - doorH + 0.05, 0.18), frameMat);
+    topBeam.position.set(0, doorH + (LH - doorH) / 2, LZE - 0.09); scene.add(topBeam);
+
+    // 4 door panels separated by frame posts
+    const numDoors = 4, doorW = entrW / numDoors;
+    for (let i = 0; i <= numDoors; i++) {
+        const xp = -entrW / 2 + i * doorW;
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.09, doorH + 0.1, 0.18), frameMat);
+        post.position.set(xp, doorH / 2, LZE - 0.09); scene.add(post);
+    }
+    // Horizontal frame rail
+    const hRail = new THREE.Mesh(new THREE.BoxGeometry(entrW, 0.09, 0.18), frameMat);
+    hRail.position.set(0, doorH, LZE - 0.09); scene.add(hRail);
+    // Mid-rail
+    const midRail = new THREE.Mesh(new THREE.BoxGeometry(entrW, 0.07, 0.18), frameMat);
+    midRail.position.set(0, doorH * 0.45, LZE - 0.09); scene.add(midRail);
+
+    // Broken glass panels (mostly shattered, shards hanging or missing)
+    for (let i = 0; i < numDoors; i++) {
+        const xc = -entrW / 2 + i * doorW + doorW / 2;
+        // Remaining glass shard (random size, tilted)
+        if (Math.random() > 0.3) {
+            const sw = doorW * (0.25 + Math.random() * 0.35);
+            const sh = doorH * (0.12 + Math.random() * 0.28);
+            const shard = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), glassShardMat);
+            shard.position.set(xc + (Math.random() - 0.5) * doorW * 0.4,
+                sh / 2 + Math.random() * doorH * 0.5, LZE - 0.04);
+            shard.rotation.z = (Math.random() - 0.5) * 0.7;
+            scene.add(shard);
+        }
+        // Lower pane (some still intact)
+        if (Math.random() > 0.5) {
+            const lp = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.85, doorH * 0.35), glassMat);
+            lp.position.set(xc, doorH * 0.2, LZE - 0.04); scene.add(lp);
+        }
+    }
+
+    // Broken glass on floor near entrance
+    const floorGlassMat = new THREE.MeshStandardMaterial({
+        color: 0x8899cc, transparent: true, opacity: 0.32, roughness: 0.08, side: THREE.DoubleSide
+    });
+    for (let i = 0; i < 55; i++) {
+        const s = 0.04 + Math.random() * 0.22;
+        const g = new THREE.Mesh(new THREE.PlaneGeometry(s, s * 0.3 + Math.random() * s * 0.7), floorGlassMat);
+        g.rotation.x = -Math.PI / 2; g.rotation.z = Math.random() * Math.PI;
+        g.position.set((Math.random() - 0.5) * LW * 0.75, 0.004, LZE - 5 + Math.random() * 7);
+        scene.add(g);
+    }
+
+    // "BIENVENIDOS" header sign above entrance
+    const bienTex = createTexture(1024, 128, (ctx, w, h) => {
+        ctx.fillStyle = 'rgba(5,5,8,0.95)'; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = 'rgba(165,145,80,0.92)'; ctx.textAlign = 'center';
+        ctx.font = 'bold 52px "Arial Black",Arial,sans-serif';
+        ctx.fillText('BIENVENIDOS — ADMISIONES', w / 2, 85);
+        ctx.strokeStyle = 'rgba(100,85,40,0.55)'; ctx.lineWidth = 4; ctx.strokeRect(4, 4, w - 8, h - 8);
+    });
+    const bienSign = new THREE.Mesh(new THREE.PlaneGeometry(entrW - 0.2, 0.62),
+        new THREE.MeshStandardMaterial({ map: bienTex, roughness: 0.7, emissive: 0x201400, emissiveIntensity: 0.35 }));
+    bienSign.position.set(0, LH * 0.91, LZE - 0.3); scene.add(bienSign);
+
+    // Exterior (dark outside wall visible through entrance)
+    const extMat = new THREE.MeshStandardMaterial({ color: 0x080c14, roughness: 1.0 });
+    const extWall = new THREE.Mesh(new THREE.PlaneGeometry(LW + 4, LH + 3), extMat);
+    extWall.position.set(0, (LH + 3) / 2 - 1, LZE + 0.9); scene.add(extWall);
+    const extFloor = new THREE.Mesh(new THREE.PlaneGeometry(LW + 8, 8), new THREE.MeshStandardMaterial({ color: 0x060809, roughness: 1.0 }));
+    extFloor.rotation.x = -Math.PI / 2; extFloor.position.set(0, 0, LZE + 4); scene.add(extFloor);
+}
+
+function buildReceptionDesk(deskMat, deskTopMat, LZS, LZE) {
+    // Large L-shaped counter: main bar + side wing
+    const deskH = 1.18, mainW = 9.5, mainD = 2.3;
+    const wingW = 1.1, wingD = 6.5;
+    const startX = -2.5, frontZ = 15.5;
+
+    // Main counter body
+    const cBody = new THREE.Mesh(new THREE.BoxGeometry(mainW, deskH, mainD), deskMat);
+    cBody.position.set(startX + mainW / 2, deskH / 2, frontZ - mainD / 2);
+    cBody.castShadow = true; cBody.receiveShadow = true; scene.add(cBody);
+    // Top surface (slightly overhanging)
+    const cTop = new THREE.Mesh(new THREE.BoxGeometry(mainW + 0.12, 0.06, mainD + 0.12), deskTopMat);
+    cTop.position.set(startX + mainW / 2, deskH, frontZ - mainD / 2);
+    cTop.castShadow = true; scene.add(cTop);
+
+    // Side wing (north-running wing)
+    const wBody = new THREE.Mesh(new THREE.BoxGeometry(wingW, deskH, wingD), deskMat);
+    wBody.position.set(startX + mainW - wingW / 2, deskH / 2, frontZ - mainD - wingD / 2);
+    wBody.castShadow = true; wBody.receiveShadow = true; scene.add(wBody);
+    const wTop = new THREE.Mesh(new THREE.BoxGeometry(wingW + 0.12, 0.06, wingD + 0.12), deskTopMat);
+    wTop.position.set(startX + mainW - wingW / 2, deskH, frontZ - mainD - wingD / 2);
+    wTop.castShadow = true; scene.add(wTop);
+
+    // Back wall panel with map board + BIENVENIDOS graffiti
+    const backTex = createTexture(1024, 512, (ctx, w, h) => {
+        ctx.fillStyle = '#4a4c3e'; ctx.fillRect(0, 0, w, h);
+        drawDirt(ctx, w, h, 900);
+        // Map board
+        const mx = w * 0.28, my = h * 0.06, mw = w * 0.44, mh = h * 0.88;
+        ctx.fillStyle = 'rgba(155,145,95,0.88)'; ctx.fillRect(mx, my, mw, mh);
+        ctx.strokeStyle = 'rgba(70,60,30,0.9)'; ctx.lineWidth = 4; ctx.strokeRect(mx, my, mw, mh);
+        ctx.strokeStyle = 'rgba(35,35,25,0.35)'; ctx.lineWidth = 1;
+        for (let i = 0; i < 10; i++) { ctx.beginPath(); ctx.moveTo(mx + Math.random() * mw, my); ctx.lineTo(mx + Math.random() * mw, my + mh); ctx.stroke(); }
+        for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.moveTo(mx, my + Math.random() * mh); ctx.lineTo(mx + mw, my + Math.random() * mh); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(18,18,14,0.75)'; ctx.textAlign = 'center';
+        ctx.font = 'bold 20px Arial'; ctx.fillText('HOSPITAL PSIQUIÁTRICO — PLANO DE EMERGENCIA', w / 2, h * 0.11);
+        ctx.font = '14px Arial'; ctx.fillStyle = 'rgba(30,28,20,0.55)'; ctx.fillText('PLANTA BAJA / PLANTA 1', w / 2, h * 0.58);
+        // Graffiti "AYUDA"
+        drawSprayText(ctx, 'AYUDA', Math.round(w * 0.02), Math.round(h * 0.88), 52, { color: 'rgba(88,4,4,0.82)', tilt: 0.04 });
+        drawSprayText(ctx, 'NO SALGAS', Math.round(w * 0.62), Math.round(h * 0.88), 40, { color: 'rgba(10,10,8,0.78)', tilt: -0.03 });
+        const lg = ctx.createLinearGradient(0, 0, 0, h);
+        lg.addColorStop(0, 'rgba(0,0,0,0.55)'); lg.addColorStop(1, 'rgba(0,0,0,0.78)');
+        ctx.fillStyle = lg; ctx.fillRect(0, 0, w, h);
+    });
+    const backPanel = new THREE.Mesh(new THREE.BoxGeometry(mainW + 1, 2.8, 0.14),
+        new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.88 }));
+    backPanel.position.set(startX + mainW / 2 - 0.5, deskH + 1.42, frontZ - mainD - 0.1);
+    backPanel.castShadow = true; backPanel.receiveShadow = true; scene.add(backPanel);
+
+    // Old CRT computers on counter
+    const monMat = new THREE.MeshStandardMaterial({ color: 0x1e1e1e, roughness: 0.55, metalness: 0.55 });
+    const screenEmit = new THREE.MeshStandardMaterial({
+        color: 0x040810, roughness: 0.15, metalness: 0.2,
+        emissive: 0x040c04, emissiveIntensity: 0.5
+    });
+    for (let i = 0; i < 3; i++) {
+        const mx = startX + 1.0 + i * 2.6;
+        const mz = frontZ - mainD * 0.6;
+        // Base
+        const base = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.04, 0.28), monMat);
+        base.position.set(mx, deskH + 0.02, mz); base.castShadow = true; scene.add(base);
+        // Stem
+        const stem = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.05), monMat);
+        stem.position.set(mx, deskH + 0.15, mz + 0.04); stem.castShadow = true; scene.add(stem);
+        // CRT body (bulky)
+        const crt = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.36, 0.38), monMat);
+        crt.position.set(mx, deskH + 0.44, mz); crt.rotation.x = -0.12;
+        crt.castShadow = true; scene.add(crt);
+        // Screen face
+        const face = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.3), screenEmit);
+        face.position.set(mx, deskH + 0.44, mz - 0.19); face.rotation.x = -0.12; scene.add(face);
+        // Keyboard
+        const kb = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.02, 0.16), monMat);
+        kb.position.set(mx + (Math.random() - 0.5) * 0.1, deskH + 0.01, mz + 0.12);
+        kb.rotation.y = (Math.random() - 0.5) * 0.25; kb.castShadow = true; scene.add(kb);
+    }
+
+    // Papers and folders on counter
+    const paperMat2 = new THREE.MeshStandardMaterial({ color: 0xc8c4ac, roughness: 1.0, side: THREE.DoubleSide });
+    for (let i = 0; i < 18; i++) {
+        const p = new THREE.Mesh(new THREE.PlaneGeometry(0.2 + Math.random() * 0.14, 0.26 + Math.random() * 0.1), paperMat2);
+        p.position.set(startX + 0.3 + Math.random() * (mainW - 0.5), deskH + 0.005 + Math.random() * 0.05,
+            frontZ - 0.15 - Math.random() * mainD * 0.85);
+        p.rotation.x = -Math.PI / 2; p.rotation.z = Math.random() * Math.PI; scene.add(p);
+    }
+
+    // Old desk telephone
+    const telMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.7, metalness: 0.25 });
+    const telBody = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.24), telMat);
+    telBody.position.set(startX + 0.35, deskH + 0.03, frontZ - 1.2); telBody.castShadow = true; scene.add(telBody);
+    const handset = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.05, 0.09), telMat);
+    handset.position.set(startX + 0.35, deskH + 0.1, frontZ - 0.92);
+    handset.rotation.z = 0.55; scene.add(handset);
+
+    // Desk lamp (knocked over, rolling)
+    const lampMat = new THREE.MeshStandardMaterial({ color: 0x2d2d2d, roughness: 0.5, metalness: 0.75 });
+    const lampBase2 = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.05, 8), lampMat);
+    lampBase2.position.set(startX + 6.8, deskH + 0.025, frontZ - 1.9); scene.add(lampBase2);
+    const lampArm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.42, 8), lampMat);
+    lampArm2.rotation.z = Math.PI / 2; lampArm2.position.set(startX + 6.8, deskH + 0.22, frontZ - 1.6);
+    scene.add(lampArm2);
+    const lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.14, 10, 1, true), lampMat);
+    lampShade.position.set(startX + 7.15, deskH + 0.24, frontZ - 1.6);
+    lampShade.rotation.z = -Math.PI / 2; scene.add(lampShade);
+
+    // Chair behind desk
+    const stoolSeat = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.06, 12),
+        new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.85 }));
+    stoolSeat.position.set(startX + 2.5, 0.68, frontZ - mainD - 0.7);
+    stoolSeat.castShadow = true; scene.add(stoolSeat);
+    const stoolStem = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.7, 8), materials.rustyMetal);
+    stoolStem.position.set(startX + 2.5, 0.34, frontZ - mainD - 0.7); scene.add(stoolStem);
+
+    // Wastebasket (tipped)
+    const wbMat = new THREE.MeshStandardMaterial({ color: 0x252525, roughness: 0.9, metalness: 0.45, side: THREE.DoubleSide });
+    const wb = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.1, 0.27, 12, 1, true), wbMat);
+    wb.position.set(startX - 0.4, 0.0, frontZ + 0.6); wb.rotation.z = Math.PI * 0.38;
+    wb.castShadow = true; scene.add(wb);
+}
+
+function buildWaitingArea(LZS, LZE, LW) {
+    const xBase = -LW / 2 + 1.1;
+    // Two rows of waiting chairs along west side
+    const rows = [
+        { x: xBase, zs: LZS + 3.5, count: 3, step: 3.8 },
+        { x: xBase + 1.4, zs: LZS + 4, count: 3, step: 3.8 }
+    ];
+    rows.forEach(row => {
+        for (let i = 0; i < row.count; i++) {
+            const c = createWaitingChair(row.x, 0, row.zs + i * row.step);
+            scene.add(c);
+        }
+    });
+
+    // A few chairs knocked over / dragged out of place
+    for (let i = 0; i < 5; i++) {
+        const x = -LW / 2 + 0.8 + Math.random() * 4.5;
+        const z = LZS + 2.5 + Math.random() * (LZE - LZS - 7);
+        const c = createWaitingChair(x, 0, z);
+        c.rotation.y = Math.random() * Math.PI * 2;
+        c.rotation.z = (Math.random() - 0.5) * 1.4;
+        c.position.y = 0.1 + Math.random() * 0.2;
+        scene.add(c);
+    }
+
+    // Small side table with old magazines
+    const tabMat = new THREE.MeshStandardMaterial({ color: 0x221810, roughness: 0.85 });
+    const tabTop = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.04, 0.5), tabMat);
+    tabTop.position.set(-LW / 2 + 1.6, 0.5, LZS + 14); tabTop.castShadow = true; scene.add(tabTop);
+    const tabLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 8), materials.rustyMetal);
+    tabLeg.position.set(-LW / 2 + 1.6, 0.25, LZS + 14); tabLeg.castShadow = true; scene.add(tabLeg);
+    // Papers/magazines on table
+    for (let i = 0; i < 4; i++) {
+        const p = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.008 + i * 0.003, 0.22),
+            new THREE.MeshStandardMaterial({ color: 0xb8b098 + i * 0x020200, roughness: 1.0 }));
+        p.position.set(-LW / 2 + 1.6 + (Math.random() - 0.5) * 0.35, 0.54 + i * 0.009, LZS + 14 + (Math.random() - 0.5) * 0.2);
+        p.rotation.y = (Math.random() - 0.5) * 0.5; p.castShadow = true; scene.add(p);
+    }
+
+    // Scattered toys (matching reference image)
+    const toyColors = [0xff3311, 0x2244cc, 0xeeaa00, 0x22aa44];
+    for (let i = 0; i < 4; i++) {
+        const tc = toyColors[i];
+        const tm = new THREE.MeshStandardMaterial({ color: tc, roughness: 0.85 });
+        let toy;
+        if (i === 0) toy = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), tm);
+        else if (i === 1) { toy = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.22), tm); toy.rotation.y = 0.9; }
+        else if (i === 2) toy = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.2, 8), tm);
+        else toy = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.16, 8), tm);
+        toy.position.set(-LW / 2 + 2 + i * 0.7, 0.09, LZS + 8 + (Math.random() - 0.5) * 2);
+        toy.castShadow = true; scene.add(toy);
+    }
+}
+
+function createWaitingChair(x, y, z) {
+    const g = new THREE.Group();
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x1a3848, roughness: 0.88 });
+    const fMat = materials.rustyMetal;
+    // Seat
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.065, 0.5), seatMat);
+    seat.position.y = 0.44; seat.castShadow = true; g.add(seat);
+    // Backrest
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.48, 0.065), seatMat);
+    back.position.set(0, 0.7, -0.22); back.rotation.x = 0.07;
+    back.castShadow = true; g.add(back);
+    // Legs
+    [[-0.21, -0.2], [0.21, -0.2], [-0.21, 0.2], [0.21, 0.2]].forEach(([lx, lz]) => {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.02, 0.44, 8), fMat);
+        leg.position.set(lx, 0.22, lz); leg.castShadow = true; g.add(leg);
+    });
+    // Foot rail
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.42, 8), fMat);
+    rail.rotation.z = Math.PI / 2; rail.position.set(0, 0.1, 0.2); g.add(rail);
+    const rail2 = rail.clone(); rail2.position.set(0, 0.1, -0.2); g.add(rail2);
+    g.position.set(x, y, z);
+    g.rotation.y = (Math.random() - 0.5) * 0.25;
+    return g;
+}
+
+function buildVendingMachine(x, z) {
+    const g = new THREE.Group();
+    const bodyTex = createTexture(256, 512, (ctx, w, h) => {
+        ctx.fillStyle = '#181820'; ctx.fillRect(0, 0, w, h);
+        // Display window (dark glass)
+        ctx.fillStyle = 'rgba(4,4,8,0.96)'; ctx.fillRect(w * 0.07, h * 0.08, w * 0.86, h * 0.56);
+        ctx.strokeStyle = 'rgba(70,70,100,0.65)'; ctx.lineWidth = 3;
+        ctx.strokeRect(w * 0.07, h * 0.08, w * 0.86, h * 0.56);
+        // Rows of products (dimly visible)
+        for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) {
+            ctx.fillStyle = `rgba(${12 + Math.random() * 10},${4 + Math.random() * 6},${4 + Math.random() * 6},0.75)`;
+            ctx.fillRect(w * 0.1 + c * w * 0.28, h * 0.11 + r * h * 0.12, w * 0.25, h * 0.09);
+        }
+        // Lower coin + selection panel
+        ctx.fillStyle = '#101018'; ctx.fillRect(w * 0.07, h * 0.69, w * 0.86, h * 0.28);
+        ctx.strokeStyle = 'rgba(55,55,75,0.55)'; ctx.lineWidth = 2;
+        ctx.strokeRect(w * 0.07, h * 0.69, w * 0.86, h * 0.28);
+        ctx.fillStyle = 'rgba(55,50,35,0.85)'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('SELECCIÓN AUTOMÁTICA', w / 2, h * 0.77);
+        // Keypad dots
+        for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+            ctx.fillStyle = 'rgba(40,40,55,0.8)';
+            ctx.beginPath(); ctx.arc(w * 0.2 + c * w * 0.25, h * 0.83 + r * h * 0.04, 5, 0, Math.PI * 2); ctx.fill();
+        }
+        drawDirt(ctx, w, h, 350);
+        drawRustStreak(ctx, w * 0.5, 0, h * 0.4, 14);
+    });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.82, 1.95, 0.56),
+        new THREE.MeshStandardMaterial({ map: bodyTex, roughness: 0.65, metalness: 0.4 }));
+    body.position.y = 0.975; body.castShadow = true; body.receiveShadow = true; g.add(body);
+    // Side trim strips
+    for (const sx of [-0.42, 0.42]) {
+        const t = new THREE.Mesh(new THREE.BoxGeometry(0.025, 1.95, 0.56), materials.darkMetal);
+        t.position.set(sx, 0.975, 0); g.add(t);
+    }
+    // Top vent
+    const vent = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.07, 0.04), materials.darkMetal);
+    vent.position.set(0, 1.91, -0.28); vent.rotation.x = 0.35; g.add(vent);
+    // Product collection slot
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.08), materials.darkMetal);
+    slot.position.set(0, 0.08, -0.28); g.add(slot);
+
+    g.position.set(x, 0, z); g.rotation.y = Math.PI / 2; scene.add(g);
+}
+
+function buildLobbySigns(LW, LH, LCZ, LZE, CORR_Z, CORR_W) {
+    // URGENCIAS / CONSULTAS on east wall above corridor
+    const urgTex = createTexture(512, 96, (ctx, w, h) => {
+        ctx.fillStyle = 'rgba(8,8,8,0.95)'; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = 'rgba(175,12,12,0.92)'; ctx.fillRect(0, 0, w * 0.5, h);
+        ctx.fillStyle = 'rgba(165,150,80,0.92)'; ctx.textAlign = 'center'; ctx.font = 'bold 32px "Arial Black",Arial';
+        ctx.fillText('URGENCIAS', w * 0.25, 62);
+        ctx.fillStyle = 'rgba(140,135,125,0.88)'; ctx.fillText('CONSULTAS', w * 0.75, 62);
+        ctx.strokeStyle = 'rgba(90,75,35,0.6)'; ctx.lineWidth = 3; ctx.strokeRect(3, 3, w - 6, h - 6);
+    });
+    const urgMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 0.55),
+        new THREE.MeshStandardMaterial({ map: urgTex, roughness: 0.75, emissive: 0x280000, emissiveIntensity: 0.55 }));
+    urgMesh.rotation.y = -Math.PI / 2;
+    urgMesh.position.set(LW / 2 - 0.12, LH * 0.76, CORR_Z + CORR_W * 0.5);
+    scene.add(urgMesh);
+
+    // PASILLO DE ADMISIONES ◄►
+    const passTex = createTexture(512, 96, (ctx, w, h) => {
+        ctx.fillStyle = 'rgba(10,10,12,0.94)'; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = 'rgba(150,140,85,0.9)'; ctx.textAlign = 'center';
+        ctx.font = 'bold 26px Arial'; ctx.fillText('◄ ADMISIONES ►', w / 2, 48);
+        ctx.font = '18px Arial'; ctx.fillStyle = 'rgba(115,105,65,0.7)';
+        ctx.fillText('PASILLO DE ADMISIONES', w / 2, 75);
+        ctx.strokeStyle = 'rgba(75,65,30,0.55)'; ctx.lineWidth = 2; ctx.strokeRect(3, 3, w - 6, h - 6);
+    });
+    const passMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.52),
+        new THREE.MeshStandardMaterial({ map: passTex, roughness: 0.8 }));
+    passMesh.rotation.y = -Math.PI / 2;
+    passMesh.position.set(LW / 2 - 0.12, LH * 0.6, CORR_Z + CORR_W * 0.5);
+    scene.add(passMesh);
+
+    // BAÑOS sign (upper east area)
+    const banosTex = createTexture(256, 64, (ctx, w, h) => {
+        ctx.fillStyle = 'rgba(12,12,28,0.94)'; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = 'rgba(130,130,200,0.9)'; ctx.textAlign = 'center';
+        ctx.font = 'bold 24px Arial'; ctx.fillText('BAÑOS ▶', w / 2, 44);
+        ctx.strokeStyle = 'rgba(70,70,140,0.55)'; ctx.lineWidth = 2; ctx.strokeRect(2, 2, w - 4, h - 4);
+    });
+    const banosMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.32),
+        new THREE.MeshStandardMaterial({ map: banosTex, roughness: 0.8, emissive: 0x040415, emissiveIntensity: 0.55 }));
+    banosMesh.rotation.y = -Math.PI / 2;
+    banosMesh.position.set(LW / 2 - 0.12, LH * 0.9, LZE - 2);
+    scene.add(banosMesh);
+
+    // ESCALERA AL NIVEL 1 (floor-level, southeast corner)
+    const escTex = createTexture(256, 64, (ctx, w, h) => {
+        ctx.fillStyle = 'rgba(8,10,8,0.94)'; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = 'rgba(130,195,130,0.85)'; ctx.textAlign = 'center';
+        ctx.font = 'bold 16px Arial'; ctx.fillText('▼ ESCALERA AL NIVEL 1', w / 2, 40);
+        ctx.strokeStyle = 'rgba(55,110,55,0.55)'; ctx.lineWidth = 2; ctx.strokeRect(2, 2, w - 4, h - 4);
+    });
+    const escMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.48),
+        new THREE.MeshStandardMaterial({ map: escTex, roughness: 0.8, emissive: 0x031503, emissiveIntensity: 0.65 }));
+    escMesh.rotation.y = -Math.PI / 2;
+    escMesh.position.set(LW / 2 - 0.12, 0.42, LZE - 1.2);
+    scene.add(escMesh);
+
+    // EXIT sign above hallway opening (red glow)
+    const exitTex = createTexture(256, 64, (ctx, w, h) => {
+        ctx.fillStyle = 'rgba(130,0,0,0.97)'; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = 'rgba(255,215,215,0.98)'; ctx.textAlign = 'center';
+        ctx.font = 'bold 30px "Arial Black",Arial'; ctx.fillText('SALIDA ↓', w / 2, 46);
+    });
+    const exitMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 0.22),
+        new THREE.MeshStandardMaterial({ map: exitTex, roughness: 0.5, emissive: 0x660000, emissiveIntensity: 1.4 }));
+    exitMesh.position.set(0, LH * 0.85, 2.35); scene.add(exitMesh);
+    const exitGlow = new THREE.PointLight(0xff0000, 1.8, 5);
+    exitGlow.position.set(0, LH * 0.85 + 0.1, 2.4); scene.add(exitGlow);
+    lights.push({ light: exitGlow, mat: null, baseInt: 1.8, isBroken: false });
+}
+
+function buildLobbyDebris(LW, LD, LZS) {
+    const paperMat3 = new THREE.MeshStandardMaterial({ color: 0xcfc9b5, roughness: 1.0, side: THREE.DoubleSide });
+    const tileMat3 = new THREE.MeshStandardMaterial({ color: 0x686660, roughness: 1.0 });
+
+    for (let i = 0; i < 70; i++) {
+        const roll = Math.random();
+        let mesh;
+        if (roll < 0.44) {
+            mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.18 + Math.random() * 0.24, 0.13 + Math.random() * 0.2), paperMat3);
+            mesh.rotation.x = -Math.PI / 2; mesh.rotation.z = Math.random() * Math.PI; mesh.position.y = 0.01;
+        } else if (roll < 0.68) {
+            mesh = new THREE.Mesh(new THREE.BoxGeometry(0.28 + Math.random() * 0.55, 0.04, 0.28 + Math.random() * 0.5), tileMat3);
+            mesh.rotation.y = Math.random() * Math.PI; mesh.position.y = 0.02;
+        } else if (roll < 0.84) {
+            mesh = new THREE.Mesh(new THREE.BoxGeometry(0.07 + Math.random() * 0.12, 0.04 + Math.random() * 0.07, 0.07 + Math.random() * 0.12),
+                new THREE.MeshStandardMaterial({ color: 0x565250, roughness: 1.0 }));
+            mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI); mesh.position.y = 0.04;
+        } else {
+            mesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.035, 0.2),
+                new THREE.MeshStandardMaterial({ color: 0x382818, roughness: 0.9 }));
+            mesh.rotation.set(0, Math.random() * Math.PI, (Math.random() - 0.5) * 0.65); mesh.position.y = 0.018;
+        }
+        mesh.position.x = (Math.random() - 0.5) * (LW - 2.5);
+        mesh.position.z = LZS + 1.2 + Math.random() * (LD - 3);
+        mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+    }
+
+    // Dangling wires from damaged ceiling
+    for (let i = 0; i < 10; i++) {
+        const wx = (Math.random() - 0.5) * (LW - 2);
+        const wz = LZS + 2 + Math.random() * (LD - 4);
+        const wLen = 0.5 + Math.random() * 1.8;
+        const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, wLen, 6),
+            new THREE.MeshStandardMaterial({ color: 0x0d0d0d, roughness: 0.95 }));
+        wire.position.set(wx, 4.5 - wLen / 2, wz);
+        wire.rotation.z = (Math.random() - 0.5) * 0.45; scene.add(wire);
+    }
+
+    // Tipped trash can + scattered contents
+    const canMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.85, metalness: 0.5, side: THREE.DoubleSide });
+    const trashCan = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.16, 0.52, 12, 1, true), canMat);
+    trashCan.position.set(3.8, 0.18, LZS + 7.5); trashCan.rotation.z = Math.PI * 0.42;
+    trashCan.castShadow = true; scene.add(trashCan);
+    for (let i = 0; i < 7; i++) {
+        const sp = new THREE.Mesh(new THREE.PlaneGeometry(0.14 + Math.random() * 0.1, 0.16 + Math.random() * 0.1), paperMat3);
+        sp.position.set(3.8 + (Math.random() - 0.5) * 1.2, 0.01, LZS + 7.5 + (Math.random() - 0.5) * 1.2);
+        sp.rotation.x = -Math.PI / 2; sp.rotation.z = Math.random() * Math.PI; scene.add(sp);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function checkBoundary(pos) {
     const limitXRight = (HALL_WIDTH / 2) - 0.5;
     const limitXLeftHall = -(HALL_WIDTH / 2) + 0.5;
 
+    // Lobby zone (z > 1.5): wider bounds, prevent walking through side walls
+    if (pos.z > 1.5) {
+        if (pos.z > 23.5) pos.z = 23.5;
+        if (pos.x < -9.5) pos.x = -9.5;
+        if (pos.x > 9.5) pos.x = 9.5;
+        // Only allow dropping back into hallway through the opening (x within ±HALL_WIDTH/2)
+        if (pos.z < 2.1 && Math.abs(pos.x) > HALL_WIDTH / 2 - 0.3) {
+            pos.z = 2.1;
+        }
+        return;
+    }
+
+    // Hallway zone
     if (pos.x > limitXRight) pos.x = limitXRight;
-    if (pos.z > 2) pos.z = 2;
+    if (pos.z > 1.5) pos.z = 1.5;
     if (pos.z < -HALL_LENGTH + 2) pos.z = -HALL_LENGTH + 2;
 
     if (pos.x < limitXLeftHall) {
@@ -1899,8 +2593,8 @@ function animate() {
         const moveX = direction.x * moveSpeed * deltaTime;
         const moveZ = direction.z * moveSpeed * deltaTime;
 
-        const pX = moveX * cYaw + moveZ * sYaw;
-        const pZ = -moveX * sYaw + moveZ * cYaw;
+        const pX = moveX * cYaw - moveZ * sYaw;
+        const pZ = -moveX * sYaw - moveZ * cYaw;
         camera.position.x += pX;
         camera.position.z += pZ;
 
