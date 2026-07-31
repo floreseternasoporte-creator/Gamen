@@ -240,6 +240,45 @@
         }
         #glitch-layer.firing { animation: glitchAnim 0.22s steps(1) forwards; }
 
+        /* ── Cinematic letterbox bars ──────────────────────────────────────── */
+        #cinematic-bars {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 19;
+        }
+        #cinematic-bars .bar {
+            position: absolute;
+            left: 0; right: 0;
+            background: #000;
+            transition: height 0.6s ease;
+        }
+        #cinematic-bars .top-bar { top: 0; height: 0; }
+        #cinematic-bars .bottom-bar { bottom: 0; height: 0; }
+        #cinematic-bars.active .top-bar,
+        #cinematic-bars.active .bottom-bar {
+            height: 8vh;
+        }
+        /* ── Breathing vignette (subtle) ───────────────────────────────────── */
+        #breath-vignette {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 7;
+            background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.3) 100%);
+            opacity: 0.5;
+        }
+        /* ── Lens flash effect ─────────────────────────────────────────────── */
+        #lens-flash {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 17;
+            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0) 0%, transparent 50%);
+            opacity: 0;
+            transition: opacity 0.1s ease;
+        }
+
         /* ── Chromatic aberration flash on canvas ───────────────────────────── */
         @keyframes caFlash {
             0%, 100% { filter: none; }
@@ -767,6 +806,12 @@
 <div id="heartbeat-vignette"></div>
 <div id="scanlines"></div>
 <div id="glitch-layer"></div>
+<div id="cinematic-bars">
+    <div class="bar top-bar"></div>
+    <div class="bar bottom-bar"></div>
+</div>
+<div id="breath-vignette"></div>
+<div id="lens-flash"></div>
 <div id="interact-prompt">[ E ] ABRIR PUERTA</div>
 
 <div id="ui-layer">
@@ -964,8 +1009,12 @@ function init() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x010101);
-    scene.fog = new THREE.FogExp2(0x050505, 0.046);
+    scene.background = new THREE.Color(0x020203);
+    scene.fog = new THREE.FogExp2(0x060507, 0.042);
+    // Dynamic fog control
+    window._fogBaseDensity = 0.042;
+    window._fogTargetDensity = 0.042;
+    window._fogBaseColor = new THREE.Color(0x060507);
 
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
     camera.position.set(0, 1.6, 12);
@@ -981,6 +1030,47 @@ function init() {
     scene.add(fillLight);
     lights.push({ light: fillLight, mat: null, baseInt: 1.55, isBroken: false });
 
+    // Atmospheric colored accent lights (cinematic depth)
+    const accentColors = [0x1a3a5c, 0x3a1a5c, 0x1a5c3a, 0x5c3a1a];
+    const accentPositions = [
+        { x: 2, z: -20 },
+        { x: -2, z: -35 },
+        { x: 2, z: -50 },
+        { x: -1, z: -8 }
+    ];
+    accentPositions.forEach((pos, i) => {
+        const accent = new THREE.PointLight(accentColors[i], 1.2, 12);
+        accent.position.set(pos.x, 1.5, pos.z);
+        scene.add(accent);
+        lights.push({
+            light: accent,
+            mat: null,
+            baseInt: 1.2,
+            isBroken: false,
+            isAccent: true,
+            phase: i * 1.5
+        });
+    });
+
+    // Emergency strobe lights (red, intermittent)
+    const emergencyPositions = [
+        { x: 2.5, z: -15 },
+        { x: -2.5, z: -40 }
+    ];
+    emergencyPositions.forEach((pos, i) => {
+        const emLight = new THREE.PointLight(0xff2222, 0, 8);
+        emLight.position.set(pos.x, WALL_HEIGHT - 0.3, pos.z);
+        scene.add(emLight);
+        lights.push({
+            light: emLight,
+            mat: null,
+            baseInt: 0,
+            isBroken: false,
+            isEmergency: true,
+            phase: i * Math.PI
+        });
+    });
+
     flashlight = new THREE.SpotLight(0xfff5e6, 25, 30, Math.PI / 5, 0.6, 1.5);
     flashlight.position.set(0.2, -0.2, 0);
     flashlight.target.position.set(0, 0, -1);
@@ -990,6 +1080,15 @@ function init() {
     flashlight.shadow.bias = -0.0005;
     camera.add(flashlight);
     camera.add(flashlight.target);
+
+    // Soft outer flashlight cone (fill light)
+    const flashlightOuter = new THREE.SpotLight(0xffeedd, 6, 20, Math.PI / 3.5, 0.8, 2);
+    flashlightOuter.position.set(0.2, -0.2, 0);
+    flashlightOuter.target.position.set(0, 0, -1);
+    camera.add(flashlightOuter);
+    camera.add(flashlightOuter.target);
+    window._flashlightOuter = flashlightOuter;
+
     scene.add(camera);
 
     createDust();
@@ -998,6 +1097,26 @@ function init() {
     buildDetailedHallway();
     buildLobby();
     initEffects();
+
+    // ── Create spark systems on broken lights ──────────────────────────
+    lights.forEach(l => {
+        if (l.isBroken && l.light) {
+            createSparkSystem(
+                l.light.position.x,
+                l.light.position.y,
+                l.light.position.z
+            );
+        }
+    });
+
+    // ── Volumetric flashlight cone (simulated light shaft) ─────────────
+    createVolumetricLight();
+
+    // ── Animated ambient objects ───────────────────────────────────────
+    createAnimatedObjects();
+
+    // ── Enhanced post-processing effects ───────────────────────────────
+    createEnhancedEffects();
 
     window.addEventListener('resize', onWindowResize, false);
     if (isMobile) setupMobileControls();
@@ -2318,16 +2437,821 @@ function createDebris() {
     registerThrowable(debrisGroup);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// VOLUMETRIC LIGHT & GOD RAYS
+// ═══════════════════════════════════════════════════════════════════════════
+let volumetricLight = null;
+let volumetricIntensity = 0;
+
+function createVolumetricLight() {
+    // Create a cone mesh that follows the flashlight
+    const coneGeo = new THREE.ConeGeometry(2.5, 18, 24, 8, true);
+    coneGeo.translate(0, -9, 0);
+    coneGeo.rotateX(-Math.PI / 2);
+
+    const coneMat = new THREE.ShaderMaterial({
+        uniforms: {
+            uIntensity: { value: 0.35 },
+            uTime: { value: 0 }
+        },
+        vertexShader: `
+            varying vec3 vPos;
+            varying float vDepth;
+            void main() {
+                vPos = position;
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                vDepth = -mvPosition.z;
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            uniform float uIntensity;
+            uniform float uTime;
+            varying vec3 vPos;
+            varying float vDepth;
+
+            void main() {
+                // Distance along cone (0 at tip, 1 at base)
+                float dist = length(vPos.xy) / 2.5;
+                float along = (-vPos.z) / 18.0;
+
+                // Noise for volumetric feel
+                float noise = sin(vPos.z * 0.5 + uTime * 0.8) * 0.1 +
+                              sin(vPos.x * 0.8 + uTime * 0.5) * 0.05;
+
+                float alpha = uIntensity * (1.0 - along) * (1.0 - dist * 0.8);
+                alpha *= 0.5 + noise * 0.5;
+                alpha = max(0.0, alpha);
+
+                // Warm light color
+                vec3 col = vec3(1.0, 0.92, 0.78);
+
+                // Edge softening
+                float edge = smoothstep(0.7, 1.0, dist);
+                alpha *= 1.0 - edge * 0.7;
+
+                gl_FragColor = vec4(col, alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending
+    });
+
+    volumetricLight = new THREE.Mesh(coneGeo, coneMat);
+    volumetricLight.position.set(0, 0, 0);
+    camera.add(volumetricLight);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANIMATED AMBIENT OBJECTS
+// ═══════════════════════════════════════════════════════════════════════════
+let animatedObjects = [];
+let swayingChairs = [];
+let floatingPapers = [];
+let swingingWires = [];
+
+function createAnimatedObjects() {
+    // ── Swaying wheelchairs (haunting effect) ──────────────────────────
+    const wheelchairPositions = [
+        { x: -1.5, z: -12, rotY: 0.3 },
+        { x: 1.8, z: -35, rotY: -0.5 }
+    ];
+
+    wheelchairPositions.forEach((pos, idx) => {
+        // Find existing wheelchairs or create new ones
+        // For now, add subtle sway animation to nearby objects
+        const sway = {
+            x: pos.x,
+            z: pos.z,
+            rotY: pos.rotY,
+            phase: idx * 1.5,
+            speed: 0.3 + Math.random() * 0.2,
+            amplitude: 0.02 + Math.random() * 0.03
+        };
+        swayingChairs.push(sway);
+    });
+
+    // ── Floating papers in hallway (supernatural effect) ───────────────
+    for (let i = 0; i < 15; i++) {
+        const paperGeo = new THREE.PlaneGeometry(0.15, 0.2);
+        const paperMat = new THREE.MeshStandardMaterial({
+            color: 0xc8c0a8,
+            roughness: 1.0,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.7
+        });
+        const paper = new THREE.Mesh(paperGeo, paperMat);
+        paper.position.set(
+            (Math.random() - 0.5) * HALL_WIDTH * 0.7,
+            0.8 + Math.random() * 2.0,
+            -5 - Math.random() * (HALL_LENGTH - 10)
+        );
+        paper.rotation.set(
+            Math.random() * Math.PI,
+            Math.random() * Math.PI,
+            Math.random() * Math.PI
+        );
+        scene.add(paper);
+        floatingPapers.push({
+            mesh: paper,
+            baseY: paper.position.y,
+            phase: Math.random() * Math.PI * 2,
+            speed: 0.2 + Math.random() * 0.3,
+            floatAmp: 0.15 + Math.random() * 0.2,
+            rotSpeed: new THREE.Vector3(
+                (Math.random() - 0.5) * 0.5,
+                (Math.random() - 0.5) * 0.5,
+                (Math.random() - 0.5) * 0.3
+            )
+        });
+    }
+
+    // ── Swinging wires / cables from ceiling ───────────────────────────
+    for (let i = 0; i < 12; i++) {
+        const wireLen = 0.6 + Math.random() * 1.5;
+        const wireGeo = new THREE.CylinderGeometry(0.006, 0.006, wireLen, 6);
+        const wireMat = new THREE.MeshStandardMaterial({
+            color: 0x111111,
+            roughness: 0.95
+        });
+        const wire = new THREE.Mesh(wireGeo, wireMat);
+        wire.position.set(
+            (Math.random() - 0.5) * (HALL_WIDTH - 1),
+            WALL_HEIGHT - wireLen / 2,
+            -3 - Math.random() * (HALL_LENGTH - 6)
+        );
+        scene.add(wire);
+        swingingWires.push({
+            mesh: wire,
+            baseRotZ: wire.rotation.z,
+            baseRotX: wire.rotation.x,
+            phase: Math.random() * Math.PI * 2,
+            speed: 0.4 + Math.random() * 0.3,
+            ampZ: 0.03 + Math.random() * 0.05,
+            ampX: 0.02 + Math.random() * 0.03
+        });
+    }
+
+    // ── Creaking beds (subtle movement) ────────────────────────────────
+    animatedObjects.push({
+        type: 'beds',
+        phase: 0,
+        speed: 0.2
+    });
+}
+
+function updateAnimatedObjects() {
+    const t = clock.elapsedTime;
+
+    // Update floating papers
+    floatingPapers.forEach(p => {
+        p.mesh.position.y = p.baseY + Math.sin(t * p.speed + p.phase) * p.floatAmp;
+        p.mesh.position.x += Math.sin(t * p.speed * 0.7 + p.phase) * 0.002;
+        p.mesh.position.z += Math.cos(t * p.speed * 0.5 + p.phase) * 0.002;
+        p.mesh.rotation.x += p.rotSpeed.x * deltaTime;
+        p.mesh.rotation.y += p.rotSpeed.y * deltaTime;
+        p.mesh.rotation.z += p.rotSpeed.z * deltaTime;
+    });
+
+    // Update swinging wires
+    swingingWires.forEach(w => {
+        w.mesh.rotation.z = w.baseRotZ + Math.sin(t * w.speed + w.phase) * w.ampZ;
+        w.mesh.rotation.x = w.baseRotX + Math.cos(t * w.speed * 0.8 + w.phase) * w.ampX;
+    });
+
+    // Update volumetric light
+    if (volumetricLight) {
+        volumetricLight.material.uniforms.uTime.value = t;
+        // Flicker slightly
+        const flicker = 0.9 + Math.sin(t * 12) * 0.05 + Math.sin(t * 27) * 0.03;
+        volumetricLight.material.uniforms.uIntensity.value = 0.35 * flicker;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENHANCED VISUAL EFFECTS (bloom simulation, chromatic aberration, etc.)
+// ═══════════════════════════════════════════════════════════════════════════
+let bloomOverlay = null;
+let caIntensity = 0;
+let motionBlurAmount = 0;
+
+function createEnhancedEffects() {
+    // Dynamic chromatic aberration is handled via CSS
+    // Add enhanced CSS effects via JS injection
+
+    // Add enhanced vignette that responds to movement
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+        }
+        @keyframes energy-ring {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+        }
+        .tk-ring {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 80px; height: 80px;
+            border: 2px solid rgba(120, 60, 255, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            animation: energy-ring 1.5s ease-out infinite;
+            display: none;
+        }
+        .tk-ring-2 {
+            animation-delay: 0.5s;
+            border-color: rgba(0, 200, 255, 0.6);
+            width: 100px; height: 100px;
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Add TK energy rings to reticle
+    const reticle = document.getElementById('tk-reticle');
+    if (reticle) {
+        const ring1 = document.createElement('div');
+        ring1.className = 'tk-ring';
+        reticle.appendChild(ring1);
+        const ring2 = document.createElement('div');
+        ring2.className = 'tk-ring tk-ring-2';
+        reticle.appendChild(ring2);
+    }
+}
+
+function updateEnhancedEffects() {
+    const moving = direction.length() > 0 || Math.abs(joyCurrentX) > 0.01 || Math.abs(joyCurrentY) > 0.01;
+    const speed = direction.length();
+
+    // Dynamic chromatic aberration based on movement speed
+    const caOverlay = document.querySelector('.chromatic-aberration');
+    if (caOverlay) {
+        const targetCA = moving ? 0.3 + speed * 0.2 : 0.1;
+        caIntensity += (targetCA - caIntensity) * 0.05;
+        caOverlay.style.opacity = caIntensity;
+    }
+
+    // Motion blur simulation (screen space)
+    const glitch = document.getElementById('glitch-overlay');
+    if (glitch && moving && speed > 0.5) {
+        motionBlurAmount = Math.min(1, motionBlurAmount + deltaTime * 2);
+    } else {
+        motionBlurAmount = Math.max(0, motionBlurAmount - deltaTime * 3);
+    }
+
+    // Breathing vignette (subtle rhythm)
+    const breathEl = document.getElementById('breath-vignette');
+    if (breathEl) {
+        const breathRate = moving ? 1.5 : 0.8;
+        const breathPhase = Math.sin(clock.elapsedTime * breathRate) * 0.5 + 0.5;
+        const baseOpacity = moving ? 0.4 : 0.55;
+        breathEl.style.opacity = baseOpacity + breathPhase * 0.15;
+        // Slight pulse in size
+        const scale = 1 + breathPhase * 0.02;
+        breathEl.style.transform = `scale(${scale})`;
+    }
+
+    // Cinematic bars during telekinesis (epic moments)
+    const cineBars = document.getElementById('cinematic-bars');
+    if (cineBars) {
+        if (tkMode && tkTarget && tkLifted) {
+            cineBars.classList.add('active');
+        } else {
+            cineBars.classList.remove('active');
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADVANCED PARTICLE SYSTEMS — volumetric dust, sparks, energy, fog
+// ═══════════════════════════════════════════════════════════════════════════
+let dustParticles = null;
+let dustCount = 0;
+let sparkSystems = [];
+let tkEnergyParticles = null;
+let fogParticles = null;
+let floatingDebris = null;
+let bloodParticles = null;
+
 function createDust() {
-    // Esporas eliminadas del pasillo — no se generan partículas flotantes.
+    // ── Volumetric dust motes (illuminated by flashlight) ────────────────
+    dustCount = 800;
+    const dustGeo = new THREE.BufferGeometry();
+    const dustPos = new Float32Array(dustCount * 3);
+    const dustSize = new Float32Array(dustCount);
+    const dustPhase = new Float32Array(dustCount);
+    const dustColor = new Float32Array(dustCount * 3);
+
+    for (let i = 0; i < dustCount; i++) {
+        dustPos[i * 3]     = (Math.random() - 0.5) * HALL_WIDTH * 1.2;
+        dustPos[i * 3 + 1] = Math.random() * WALL_HEIGHT;
+        dustPos[i * 3 + 2] = -Math.random() * HALL_LENGTH;
+        dustSize[i]        = 0.015 + Math.random() * 0.035;
+        dustPhase[i]       = Math.random() * Math.PI * 2;
+        const warm = 0.7 + Math.random() * 0.3;
+        dustColor[i * 3]     = 1.0 * warm;
+        dustColor[i * 3 + 1] = 0.92 * warm;
+        dustColor[i * 3 + 2] = 0.78 * warm;
+    }
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+    dustGeo.setAttribute('size', new THREE.BufferAttribute(dustSize, 1));
+    dustGeo.setAttribute('phase', new THREE.BufferAttribute(dustPhase, 1));
+    dustGeo.setAttribute('color', new THREE.BufferAttribute(dustColor, 3));
+
+    const dustMat = new THREE.ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uCameraPos: { value: new THREE.Vector3() },
+            uFlashlightPos: { value: new THREE.Vector3() },
+            uFlashlightDir: { value: new THREE.Vector3(0, 0, -1) },
+            uFlashlightOn: { value: 1.0 }
+        },
+        vertexShader: `
+            attribute float size;
+            attribute float phase;
+            attribute vec3 color;
+            varying vec3 vColor;
+            varying float vBrightness;
+            varying float vDepth;
+            uniform float uTime;
+            uniform vec3 uCameraPos;
+            uniform vec3 uFlashlightPos;
+            uniform vec3 uFlashlightDir;
+            uniform float uFlashlightOn;
+
+            void main() {
+                vColor = color;
+                vec3 pos = position;
+                pos.x += sin(uTime * 0.3 + phase) * 0.15;
+                pos.y += sin(uTime * 0.5 + phase * 1.3) * 0.08;
+                pos.z += cos(uTime * 0.2 + phase * 0.7) * 0.2;
+
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                vDepth = -mvPosition.z;
+
+                vec3 toParticle = pos - uFlashlightPos;
+                float dist = length(toParticle);
+                vec3 toPartNorm = normalize(toParticle);
+                float angleDot = dot(uFlashlightDir, -toPartNorm);
+                float coneFactor = smoothstep(0.7, 0.95, angleDot);
+                float distFactor = 1.0 - smoothstep(0.0, 20.0, dist);
+                vBrightness = coneFactor * distFactor * uFlashlightOn * 2.5;
+                vBrightness += 0.15;
+
+                gl_PointSize = size * (300.0 / -mvPosition.z) * (0.8 + vBrightness * 1.5);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vColor;
+            varying float vBrightness;
+            varying float vDepth;
+
+            void main() {
+                vec2 center = gl_PointCoord - vec2(0.5);
+                float dist = length(center);
+                if (dist > 0.5) discard;
+                float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+                alpha *= 0.6 + vBrightness * 0.8;
+                alpha *= 1.0 - smoothstep(10.0, 35.0, vDepth);
+                gl_FragColor = vec4(vColor * (0.6 + vBrightness * 1.2), alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+    });
+
+    dustParticles = new THREE.Points(dustGeo, dustMat);
+    dustParticles.frustumCulled = false;
+    scene.add(dustParticles);
+
+    // ── Fog / mist particles (larger, slower, volumetric feel) ──────────
+    const fogCount = 120;
+    const fogGeo = new THREE.BufferGeometry();
+    const fogPos = new Float32Array(fogCount * 3);
+    const fogSize = new Float32Array(fogCount);
+    const fogPhase = new Float32Array(fogCount);
+
+    for (let i = 0; i < fogCount; i++) {
+        fogPos[i * 3]     = (Math.random() - 0.5) * HALL_WIDTH * 1.5;
+        fogPos[i * 3 + 1] = 0.3 + Math.random() * 1.5;
+        fogPos[i * 3 + 2] = -Math.random() * HALL_LENGTH;
+        fogSize[i]        = 1.5 + Math.random() * 3.0;
+        fogPhase[i]       = Math.random() * Math.PI * 2;
+    }
+    fogGeo.setAttribute('position', new THREE.BufferAttribute(fogPos, 3));
+    fogGeo.setAttribute('size', new THREE.BufferAttribute(fogSize, 1));
+    fogGeo.setAttribute('phase', new THREE.BufferAttribute(fogPhase, 1));
+
+    const fogMat = new THREE.ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 }
+        },
+        vertexShader: `
+            attribute float size;
+            attribute float phase;
+            varying float vAlpha;
+            varying float vDepth;
+            uniform float uTime;
+
+            void main() {
+                vec3 pos = position;
+                pos.x += sin(uTime * 0.08 + phase) * 0.8;
+                pos.z += cos(uTime * 0.06 + phase * 1.2) * 1.0;
+                pos.y += sin(uTime * 0.1 + phase * 0.5) * 0.2;
+
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                vDepth = -mvPosition.z;
+                vAlpha = 0.08 + 0.06 * sin(uTime * 0.3 + phase);
+
+                gl_PointSize = size * (200.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying float vAlpha;
+            varying float vDepth;
+
+            void main() {
+                vec2 center = gl_PointCoord - vec2(0.5);
+                float dist = length(center);
+                if (dist > 0.5) discard;
+                float alpha = 1.0 - smoothstep(0.2, 0.5, dist);
+                alpha *= vAlpha;
+                alpha *= 1.0 - smoothstep(5.0, 30.0, vDepth);
+                gl_FragColor = vec4(0.45, 0.42, 0.38, alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.NormalBlending
+    });
+
+    fogParticles = new THREE.Points(fogGeo, fogMat);
+    fogParticles.frustumCulled = false;
+    scene.add(fogParticles);
+
+    // ── Floating debris / paper pieces (larger, more visible) ───────────
+    const debrisCount = 40;
+    const debGeo = new THREE.BufferGeometry();
+    const debPos = new Float32Array(debrisCount * 3);
+    const debSize = new Float32Array(debrisCount);
+    const debPhase = new Float32Array(debrisCount);
+    const debRot = new Float32Array(debrisCount);
+
+    for (let i = 0; i < debrisCount; i++) {
+        debPos[i * 3]     = (Math.random() - 0.5) * HALL_WIDTH * 0.9;
+        debPos[i * 3 + 1] = 0.5 + Math.random() * 2.5;
+        debPos[i * 3 + 2] = -5 - Math.random() * (HALL_LENGTH - 10);
+        debSize[i]        = 0.04 + Math.random() * 0.08;
+        debPhase[i]       = Math.random() * Math.PI * 2;
+        debRot[i]         = Math.random() * Math.PI;
+    }
+    debGeo.setAttribute('position', new THREE.BufferAttribute(debPos, 3));
+    debGeo.setAttribute('size', new THREE.BufferAttribute(debSize, 1));
+    debGeo.setAttribute('phase', new THREE.BufferAttribute(debPhase, 1));
+    debGeo.setAttribute('rotSpeed', new THREE.BufferAttribute(debRot, 1));
+
+    const debMat = new THREE.ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 }
+        },
+        vertexShader: `
+            attribute float size;
+            attribute float phase;
+            attribute float rotSpeed;
+            varying float vAlpha;
+            varying float vDepth;
+            varying float vRot;
+            uniform float uTime;
+
+            void main() {
+                vec3 pos = position;
+                pos.x += sin(uTime * 0.4 + phase) * 0.4;
+                pos.y += sin(uTime * 0.3 + phase * 1.5) * 0.15;
+                pos.z += cos(uTime * 0.25 + phase * 0.8) * 0.5;
+
+                vRot = uTime * rotSpeed + phase;
+
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                vDepth = -mvPosition.z;
+                vAlpha = 0.5 + 0.3 * sin(uTime * 0.5 + phase);
+
+                gl_PointSize = size * (400.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying float vAlpha;
+            varying float vDepth;
+            varying float vRot;
+
+            void main() {
+                vec2 uv = gl_PointCoord - vec2(0.5);
+                float c = cos(vRot);
+                float s = sin(vRot);
+                vec2 rotated = vec2(uv.x * c - uv.y * s, uv.x * s + uv.y * c);
+                float w = 0.5;
+                float h = 0.25;
+                if (abs(rotated.x) > w || abs(rotated.y) > h) discard;
+                float alpha = vAlpha * 0.7;
+                alpha *= 1.0 - smoothstep(w * 0.7, w, abs(rotated.x));
+                alpha *= 1.0 - smoothstep(5.0, 25.0, vDepth);
+                gl_FragColor = vec4(0.75, 0.72, 0.62, alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+
+    floatingDebris = new THREE.Points(debGeo, debMat);
+    floatingDebris.frustumCulled = false;
+    scene.add(floatingDebris);
+}
+
+function createSparkSystem(x, y, z) {
+    const sparkCount = 30;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(sparkCount * 3);
+    const vel = new Float32Array(sparkCount * 3);
+    const life = new Float32Array(sparkCount);
+    const maxLife = new Float32Array(sparkCount);
+
+    for (let i = 0; i < sparkCount; i++) {
+        pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+        life[i] = Math.random();
+        maxLife[i] = 0.3 + Math.random() * 0.7;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('life', new THREE.BufferAttribute(life, 1));
+    geo.setAttribute('maxLife', new THREE.BufferAttribute(maxLife, 1));
+
+    const mat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 } },
+        vertexShader: `
+            attribute float life;
+            attribute float maxLife;
+            varying float vAlpha;
+            varying float vDepth;
+            void main() {
+                vAlpha = 1.0 - (life / maxLife);
+                vAlpha = pow(vAlpha, 0.5);
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                vDepth = -mvPosition.z;
+                gl_PointSize = (2.0 + vAlpha * 4.0) * (150.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying float vAlpha;
+            varying float vDepth;
+            void main() {
+                vec2 center = gl_PointCoord - vec2(0.5);
+                float dist = length(center);
+                if (dist > 0.5) discard;
+                float alpha = (1.0 - smoothstep(0.0, 0.5, dist)) * vAlpha;
+                alpha *= 1.0 - smoothstep(3.0, 15.0, vDepth);
+                vec3 col = mix(vec3(1.0, 0.9, 0.6), vec3(1.0, 0.4, 0.1), dist * 2.0);
+                gl_FragColor = vec4(col, alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+    });
+
+    const points = new THREE.Points(geo, mat);
+    points.frustumCulled = false;
+    scene.add(points);
+    sparkSystems.push({
+        points,
+        posArray: pos,
+        velArray: vel,
+        lifeArray: life,
+        maxLifeArray: maxLife,
+        sparkCount,
+        originX: x, originY: y, originZ: z,
+        emitTimer: 0
+    });
 }
 
 function setupScreenParticles() {
-    // Efecto eliminado para que no aparezcan esporas circulares en pantalla.
+    // ── Telekinesis energy particles (orbiting reticle effect) ──────────
+    const tkCount = 60;
+    const tkGeo = new THREE.BufferGeometry();
+    const tkPos = new Float32Array(tkCount * 3);
+    const tkPhase = new Float32Array(tkCount);
+    const tkRadius = new Float32Array(tkCount);
+    const tkSpeed = new Float32Array(tkCount);
+
+    for (let i = 0; i < tkCount; i++) {
+        tkPhase[i] = Math.random() * Math.PI * 2;
+        tkRadius[i] = 0.3 + Math.random() * 0.8;
+        tkSpeed[i] = 0.5 + Math.random() * 2.0;
+    }
+    tkGeo.setAttribute('position', new THREE.BufferAttribute(tkPos, 3));
+    tkGeo.setAttribute('phase', new THREE.BufferAttribute(tkPhase, 1));
+    tkGeo.setAttribute('radius', new THREE.BufferAttribute(tkRadius, 1));
+    tkGeo.setAttribute('speed', new THREE.BufferAttribute(tkSpeed, 1));
+
+    const tkMat = new THREE.ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uActive: { value: 0.0 },
+            uTargetPos: { value: new THREE.Vector3() }
+        },
+        vertexShader: `
+            attribute float phase;
+            attribute float radius;
+            attribute float speed;
+            uniform float uTime;
+            uniform float uActive;
+            uniform vec3 uTargetPos;
+            varying float vAlpha;
+            varying float vDepth;
+
+            void main() {
+                float angle = uTime * speed + phase;
+                vec3 pos = uTargetPos;
+                pos.x += cos(angle) * radius;
+                pos.y += sin(angle * 1.3) * radius * 0.6;
+                pos.z += sin(angle * 0.7) * radius * 0.4;
+                pos.y += sin(uTime * speed * 0.5 + phase) * 0.2;
+
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                vDepth = -mvPosition.z;
+                vAlpha = uActive * (0.5 + 0.5 * sin(uTime * 2.0 + phase));
+
+                gl_PointSize = (3.0 + radius * 4.0) * (200.0 / -mvPosition.z) * uActive;
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying float vAlpha;
+            varying float vDepth;
+            void main() {
+                vec2 center = gl_PointCoord - vec2(0.5);
+                float dist = length(center);
+                if (dist > 0.5) discard;
+                float alpha = (1.0 - smoothstep(0.0, 0.5, dist)) * vAlpha;
+                alpha *= 1.0 - smoothstep(2.0, 12.0, vDepth);
+                vec3 col = mix(vec3(0.4, 0.1, 1.0), vec3(0.0, 0.8, 1.0), dist * 2.0);
+                gl_FragColor = vec4(col, alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+    });
+
+    tkEnergyParticles = new THREE.Points(tkGeo, tkMat);
+    tkEnergyParticles.frustumCulled = false;
+    scene.add(tkEnergyParticles);
+
+    // ── Blood drip particles (for horror atmosphere) ────────────────────
+    const bloodCount = 20;
+    const bloodGeo = new THREE.BufferGeometry();
+    const bloodPos = new Float32Array(bloodCount * 3);
+    const bloodPhase = new Float32Array(bloodCount);
+    const bloodSpeed = new Float32Array(bloodCount);
+
+    for (let i = 0; i < bloodCount; i++) {
+        bloodPos[i * 3] = (Math.random() - 0.5) * HALL_WIDTH * 0.8;
+        bloodPos[i * 3 + 1] = WALL_HEIGHT;
+        bloodPos[i * 3 + 2] = -Math.random() * HALL_LENGTH;
+        bloodPhase[i] = Math.random() * Math.PI * 2;
+        bloodSpeed[i] = 0.2 + Math.random() * 0.5;
+    }
+    bloodGeo.setAttribute('position', new THREE.BufferAttribute(bloodPos, 3));
+    bloodGeo.setAttribute('phase', new THREE.BufferAttribute(bloodPhase, 1));
+    bloodGeo.setAttribute('speed', new THREE.BufferAttribute(bloodSpeed, 1));
+
+    const bloodMat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 } },
+        vertexShader: `
+            attribute float phase;
+            attribute float speed;
+            uniform float uTime;
+            varying float vAlpha;
+            varying float vDepth;
+            varying float vDripLen;
+
+            void main() {
+                vec3 pos = position;
+                float drip = mod(uTime * speed + phase, 1.0);
+                pos.y = WALL_HEIGHT - drip * WALL_HEIGHT * 0.7;
+                vDripLen = drip;
+
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                vDepth = -mvPosition.z;
+                vAlpha = 0.3 + 0.4 * sin(uTime * 0.5 + phase);
+                vAlpha *= smoothstep(0.0, 0.1, drip) * (1.0 - smoothstep(0.85, 1.0, drip));
+
+                gl_PointSize = 3.0 * (100.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying float vAlpha;
+            varying float vDepth;
+            varying float vDripLen;
+            void main() {
+                vec2 center = gl_PointCoord - vec2(0.5);
+                float dist = length(center);
+                if (dist > 0.5) discard;
+                float alpha = (1.0 - smoothstep(0.0, 0.5, dist)) * vAlpha;
+                alpha *= 1.0 - smoothstep(3.0, 15.0, vDepth);
+                gl_FragColor = vec4(0.5, 0.02, 0.02, alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false
+    });
+
+    bloodParticles = new THREE.Points(bloodGeo, bloodMat);
+    bloodParticles.frustumCulled = false;
+    scene.add(bloodParticles);
 }
 
 function updateScreenParticles() {
-    // Sin efecto visual en pantalla.
+    const t = clock.elapsedTime;
+
+    if (dustParticles) {
+        const mat = dustParticles.material;
+        mat.uniforms.uTime.value = t;
+        mat.uniforms.uCameraPos.value.copy(camera.position);
+        const flWorldPos = new THREE.Vector3();
+        flashlight.getWorldPosition(flWorldPos);
+        mat.uniforms.uFlashlightPos.value.copy(flWorldPos);
+        const flDir = new THREE.Vector3(0, 0, -1);
+        flDir.applyQuaternion(camera.quaternion);
+        mat.uniforms.uFlashlightDir.value.copy(flDir);
+    }
+
+    if (fogParticles) {
+        fogParticles.material.uniforms.uTime.value = t;
+    }
+
+    if (floatingDebris) {
+        floatingDebris.material.uniforms.uTime.value = t;
+    }
+
+    if (bloodParticles) {
+        bloodParticles.material.uniforms.uTime.value = t;
+    }
+
+    sparkSystems.forEach(sys => {
+        sys.emitTimer -= deltaTime;
+        if (sys.emitTimer <= 0) {
+            sys.emitTimer = 0.05 + Math.random() * 0.15;
+            const emitCount = 2 + Math.floor(Math.random() * 3);
+            for (let e = 0; e < emitCount; e++) {
+                for (let i = 0; i < sys.sparkCount; i++) {
+                    if (sys.lifeArray[i] >= sys.maxLifeArray[i]) {
+                        sys.posArray[i * 3] = sys.originX + (Math.random() - 0.5) * 0.05;
+                        sys.posArray[i * 3 + 1] = sys.originY;
+                        sys.posArray[i * 3 + 2] = sys.originZ + (Math.random() - 0.5) * 0.05;
+                        sys.velArray[i * 3] = (Math.random() - 0.5) * 2;
+                        sys.velArray[i * 3 + 1] = 1 + Math.random() * 3;
+                        sys.velArray[i * 3 + 2] = (Math.random() - 0.5) * 2;
+                        sys.lifeArray[i] = 0;
+                        sys.maxLifeArray[i] = 0.2 + Math.random() * 0.6;
+                        break;
+                    }
+                }
+            }
+        }
+        for (let i = 0; i < sys.sparkCount; i++) {
+            if (sys.lifeArray[i] < sys.maxLifeArray[i]) {
+                sys.lifeArray[i] += deltaTime;
+                sys.posArray[i * 3] += sys.velArray[i * 3] * deltaTime;
+                sys.posArray[i * 3 + 1] += sys.velArray[i * 3 + 1] * deltaTime;
+                sys.posArray[i * 3 + 2] += sys.velArray[i * 3 + 2] * deltaTime;
+                sys.velArray[i * 3 + 1] -= 5 * deltaTime;
+                sys.velArray[i * 3] *= 0.98;
+                sys.velArray[i * 3 + 2] *= 0.98;
+            }
+        }
+        sys.points.geometry.attributes.position.needsUpdate = true;
+        sys.points.geometry.attributes.life.needsUpdate = true;
+        sys.points.material.uniforms.uTime.value = t;
+    });
+
+    if (tkEnergyParticles) {
+        const mat = tkEnergyParticles.material;
+        mat.uniforms.uTime.value = t;
+        mat.uniforms.uActive.value = tkMode && tkTarget ? 1.0 : 0.0;
+        if (tkTarget) {
+            mat.uniforms.uTargetPos.value.copy(tkTarget.position);
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3382,10 +4306,31 @@ function animate() {
                 if (l.spot) l.spot.intensity = Math.random() * l.spotBase * 0.3;
                 if (l.mat) l.mat.emissiveIntensity = 0.2;
             }
+        } else if (l.isAccent) {
+            // Pulsing colored accent lights for cinematic depth
+            const pulse = 0.7 + 0.3 * Math.sin(clock.elapsedTime * 0.4 + l.phase);
+            l.light.intensity = l.baseInt * pulse;
+        } else if (l.isEmergency) {
+            // Emergency strobe lights (slow, menacing blink)
+            const blink = Math.sin(clock.elapsedTime * 0.8 + l.phase);
+            l.light.intensity = blink > 0.7 ? 3.5 : 0;
         } else if (l.light && l.light.type === 'PointLight') {
             l.light.intensity = l.baseInt + Math.sin(clock.elapsedTime * 1.3 + l.baseInt) * 0.08;
         }
     });
+
+    // Dynamic fog (subtle breathing effect)
+    if (scene.fog) {
+        const fogPulse = 1.0 + 0.03 * Math.sin(clock.elapsedTime * 0.2);
+        scene.fog.density = window._fogBaseDensity * fogPulse;
+        // Subtle color shift
+        const colorShift = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 0.1);
+        scene.fog.color.setRGB(
+            0.024 + colorShift * 0.005,
+            0.02 + colorShift * 0.003,
+            0.028 + colorShift * 0.008
+        );
+    }
 
     machineDisplays.forEach((item, idx) => {
         const ctx = item.displayCtx;
@@ -3443,9 +4388,12 @@ function animate() {
     });
 
     updateScreenParticles();
+    updateAnimatedObjects();
+    updateEnhancedEffects();
     updateDoorInteraction();
     updateEffects(clock.elapsedTime);
     updateTelekinesis(deltaTime);
+    updateTKEffects(deltaTime);
     renderer.render(scene, camera);
 }
 
@@ -3631,11 +4579,184 @@ function setTKMode(on) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ENHANCED TELEKINESIS EFFECTS
+// ═══════════════════════════════════════════════════════════════════════════
+let tkShockwaves = [];
+let tkGlowMesh = null;
+let tkLiftDust = [];
+
 function triggerTKFeedback(on) {
     const vf = document.getElementById('vignette-flash');
     if (!vf) return;
-    vf.style.background = on ? 'rgba(120,40,200,0.22)' : 'rgba(120,0,0,0)';
-    setTimeout(() => { vf.style.background = 'rgba(120,0,0,0)'; }, 250);
+
+    // Multi-layered flash effect
+    vf.style.background = on
+        ? 'radial-gradient(circle, rgba(120,40,255,0.35) 0%, rgba(60,20,120,0.2) 40%, transparent 70%)'
+        : 'radial-gradient(circle, rgba(255,60,60,0.25) 0%, rgba(120,0,0,0.15) 40%, transparent 70%)';
+    vf.style.opacity = '1';
+
+    // Chromatic aberration burst
+    const ca = document.querySelector('.chromatic-aberration');
+    if (ca) {
+        ca.style.opacity = '0.8';
+        setTimeout(() => { ca.style.opacity = caIntensity; }, 150);
+    }
+
+    // Screen shake burst
+    cameraShake += on ? 0.08 : 0.05;
+
+    setTimeout(() => {
+        vf.style.opacity = '0';
+        vf.style.background = 'transparent';
+    }, 300);
+
+    // Create shockwave effect
+    createTKShockwave(on);
+}
+
+function createTKShockwave(isActivate) {
+    // Create expanding ring mesh
+    const ringGeo = new THREE.RingGeometry(0.1, 0.15, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+        color: isActivate ? 0x8844ff : 0xff4444,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.copy(camera.position);
+    ring.position.y = 1.6;
+    ring.lookAt(camera.position.x, camera.position.y + 10, camera.position.z);
+    scene.add(ring);
+
+    tkShockwaves.push({
+        mesh: ring,
+        life: 0,
+        maxLife: 0.8,
+        startRadius: 0.1,
+        endRadius: isActivate ? 4 : 2.5,
+        isActivate
+    });
+
+    // Second ring (delayed)
+    if (isActivate) {
+        setTimeout(() => {
+            const ring2Geo = new THREE.RingGeometry(0.1, 0.12, 32);
+            const ring2Mat = new THREE.MeshBasicMaterial({
+                color: 0x00ccff,
+                transparent: true,
+                opacity: 0.6,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            const ring2 = new THREE.Mesh(ring2Geo, ring2Mat);
+            ring2.position.copy(camera.position);
+            ring2.position.y = 1.6;
+            ring2.lookAt(camera.position.x, camera.position.y + 10, camera.position.z);
+            scene.add(ring2);
+
+            tkShockwaves.push({
+                mesh: ring2,
+                life: 0,
+                maxLife: 0.6,
+                startRadius: 0.1,
+                endRadius: 3,
+                isActivate: true
+            });
+        }, 100);
+    }
+}
+
+function updateTKShockwaves(dt) {
+    for (let i = tkShockwaves.length - 1; i >= 0; i--) {
+        const sw = tkShockwaves[i];
+        sw.life += dt;
+        const t = sw.life / sw.maxLife;
+
+        if (t >= 1) {
+            scene.remove(sw.mesh);
+            sw.mesh.geometry.dispose();
+            sw.mesh.material.dispose();
+            tkShockwaves.splice(i, 1);
+            continue;
+        }
+
+        // Expand ring
+        const radius = sw.startRadius + (sw.endRadius - sw.startRadius) * t;
+        sw.mesh.geometry.dispose();
+        sw.mesh.geometry = new THREE.RingGeometry(radius * 0.9, radius, 32);
+        sw.mesh.material.opacity = 0.8 * (1 - t);
+
+        // Slight float up
+        sw.mesh.position.y += dt * 0.5;
+    }
+}
+
+function createTKGlow() {
+    if (tkGlowMesh) return;
+    const glowGeo = new THREE.SphereGeometry(0.6, 16, 16);
+    const glowMat = new THREE.ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uIntensity: { value: 0 }
+        },
+        vertexShader: `
+            varying vec3 vNormal;
+            varying vec3 vPos;
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                vPos = position;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform float uTime;
+            uniform float uIntensity;
+            varying vec3 vNormal;
+            varying vec3 vPos;
+            void main() {
+                float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.0);
+                float pulse = 0.8 + 0.2 * sin(uTime * 3.0);
+                vec3 col = mix(vec3(0.4, 0.1, 1.0), vec3(0.0, 0.7, 1.0), fresnel);
+                float alpha = fresnel * uIntensity * pulse * 0.6;
+                gl_FragColor = vec4(col, alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.BackSide
+    });
+    tkGlowMesh = new THREE.Mesh(glowGeo, glowMat);
+    tkGlowMesh.visible = false;
+    scene.add(tkGlowMesh);
+}
+
+function updateTKEffects(dt) {
+    updateTKShockwaves(dt);
+
+    if (!tkGlowMesh) createTKGlow();
+
+    if (tkMode && tkTarget) {
+        tkGlowMesh.visible = true;
+        tkGlowMesh.position.copy(tkTarget.position);
+        const targetIntensity = tkLifted ? 1.0 : tkLiftProgress;
+        tkGlowMesh.material.uniforms.uIntensity.value +=
+            (targetIntensity - tkGlowMesh.material.uniforms.uIntensity.value) * 0.1;
+        tkGlowMesh.material.uniforms.uTime.value = clock.elapsedTime;
+        // Scale with object size
+        const scale = 1.2 + Math.sin(clock.elapsedTime * 2) * 0.1;
+        tkGlowMesh.scale.setScalar(scale);
+    } else {
+        tkGlowMesh.material.uniforms.uIntensity.value *= 0.9;
+        if (tkGlowMesh.material.uniforms.uIntensity.value < 0.01) {
+            tkGlowMesh.visible = false;
+        }
+    }
 }
 
 function updateTelekinesis(dt) {
